@@ -108,8 +108,6 @@ class PingCommand(BaseCommand):
         uptime = datetime.utcnow() - start_time
         components = []
         time_units = [
-            (uptime.days, "วัน"),
-            (uptime.seconds // 3600, "ชั่วโมง"),
             ((uptime.seconds % 3600) // 60, "นาที"),
             (uptime.seconds % 60, "วินาที"),
         ]
