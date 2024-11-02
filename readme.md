@@ -2,6 +2,25 @@
 
 บอท Discord ที่พัฒนาด้วย Python และ discord.py library
 
+## โครงสร้างไฟล์
+
+├── run**.**py
+├── requirements**.**txt
+├── commands**/**
+│   ├── __init__**.**py
+│   ├── base_command**.**py
+│   ├── ping_command**.**py
+│   └── roll_command**.**py
+├── cogs**/**
+│   ├── __init__**.**py
+│   ├── commands**.**py
+│   └── event_handler**.**py
+├── utils**/**
+│   ├── __init__**.**py
+│   ├── logging_config**.**py
+│   └── embed_builder**.**py
+└── bot**.**py
+
 ## การติดตั้ง
 
 1. ติดตั้ง dependencies:
@@ -16,7 +35,6 @@ pip install discord.py python-dotenv
 DISCORD_TOKEN=your_bot_token_here
 APPLICATION_ID=your_application_id_here
 ```
-
 
 ## การใช้งาน
 
