@@ -15,6 +15,7 @@ from bot import MyBot
 
 logger = setup_logger()
 
+
 async def main():
     try:
         # Load .env
@@ -23,7 +24,7 @@ async def main():
         # Check required vars
         required_vars = {"DISCORD_TOKEN", "APPLICATION_ID"}
         missing_vars = [var for var in required_vars if not os.getenv(var)]
-        
+
         if missing_vars:
             raise ValueError(f"❌ ไม่พบตัวแปรที่จำเป็น: {', '.join(missing_vars)}")
 
@@ -33,6 +34,7 @@ async def main():
     except Exception as e:
         logger.critical(f"❌ เกิดข้อผิดพลาด: {str(e)}")
         raise
+
 
 if __name__ == "__main__":
     try:

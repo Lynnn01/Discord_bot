@@ -77,8 +77,23 @@ class MyBot(commands.Bot):
             raise
 
     async def setup_hook(self):
+        """ฟังก์ชันที่จะทำงานหลังจาก bot พร้อมทำงาน"""
         try:
-            # โหลด cogs เท่านั้น ไม่ต้อง sync
+            if self.dev_mode:
+                dev_guild_id = os.getenv("DEV_GUILD_ID")
+                if not dev_guild_id:
+                    raise ValueError("❌ DEV_MODE เปิดอยู่แต่ไม่พบ DEV_GUILD_ID")
+                
+                # ออกจาก guild อื่นๆ ทั้งหมดยกเว้น dev guild
+                dev_guild = discord.Object(id=int(dev_guild_id))
+                for guild in self.guilds:
+                    if guild.id != int(dev_guild_id):
+                        await guild.leave()
+                        logger.info(f"👋 ออกจาก guild {guild.name} (Dev Mode)")
+                
+                logger.info(f"🔒 Dev Mode: จำกัดการทำงานเฉพาะใน guild {dev_guild_id}")
+            
+            # โหลด cogs
             cog_list = ["src.cogs.commands", "src.cogs.event_handler"]
             if self.dev_mode:
                 cog_list.append("src.cogs.dev_tools")
@@ -88,8 +103,19 @@ class MyBot(commands.Bot):
                 logger.info(f"✅ โหลด {cog} สำเร็จ")
                 
         except Exception as e:
-            logger.error(f"❌ เกิดข้อผิดพลาดในการเริ่มต้นบอท: {str(e)}")
+            logger.error(f"❌ เกิดข้อผิดพลาดใน setup_hook: {str(e)}")
             raise
+
+    async def on_guild_join(self, guild: discord.Guild):
+        """จัดการเมื่อบอทถูกเชิญเข้า guild ใหม่"""
+        if self.dev_mode:
+            dev_guild_id = int(os.getenv("DEV_GUILD_ID", "0"))
+            if guild.id != dev_guild_id:
+                logger.info(f"👋 ปฏิเสธการเข้าร่วม guild {guild.name} (Dev Mode)")
+                await guild.leave()
+                return
+                
+        logger.info(f"✨ เข้าร่วม guild {guild.name} ({guild.id}) สำเร็จ")
 
     async def on_ready(self):
         """เมื่อบอทพร้อมใช้งาน"""
