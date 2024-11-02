@@ -78,13 +78,7 @@ class MyBot(commands.Bot):
 
     async def setup_hook(self):
         try:
-            # Clear existing commands first
-            self.tree.clear_commands(guild=None)  # Clear global commands
-            if self.dev_mode and (guild_id := os.getenv("DEV_GUILD_ID")):
-                guild = discord.Object(id=int(guild_id))
-                self.tree.clear_commands(guild=guild)  # Clear guild-specific commands
-            
-            # Load cogs
+            # โหลด cogs เท่านั้น ไม่ต้อง sync
             cog_list = ["src.cogs.commands", "src.cogs.event_handler"]
             if self.dev_mode:
                 cog_list.append("src.cogs.dev_tools")
@@ -92,16 +86,6 @@ class MyBot(commands.Bot):
             for cog in cog_list:
                 await self.load_extension(cog)
                 logger.info(f"✅ โหลด {cog} สำเร็จ")
-            
-            # Sync commands
-            if self.dev_mode and guild_id:
-                guild = discord.Object(id=int(guild_id))
-                self.tree.copy_global_to(guild=guild)
-                await self.tree.sync(guild=guild)
-                logger.info(f"✅ Synced commands to development guild: {guild_id}")
-            else:
-                await self.tree.sync()
-                logger.info("✅ Synced commands globally")
                 
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดในการเริ่มต้นบอท: {str(e)}")

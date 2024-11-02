@@ -213,5 +213,5 @@ class EventHandler(commands.Cog):
         await message.channel.send(embed=embed)
 
 
-def setup(bot):  # เปลี่ยนเป็น sync function
-    return bot.add_cog(EventHandler(bot))
+async def setup(bot):
+    await bot.add_cog(EventHandler(bot))

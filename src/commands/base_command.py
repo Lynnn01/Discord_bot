@@ -23,6 +23,12 @@ class BaseCommand(ABC):
     def _setup_logger(self) -> None:
         """ตั้งค่า logger สำหรับคำสั่ง"""
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
 
     def _setup_constants(self) -> None:
         """ตั้งค่าค่าคงที่สำหรับคำสั่ง"""
@@ -175,3 +181,46 @@ class BaseCommand(ABC):
             color=self.COLORS["info"],
         )
         await self._safe_respond(interaction, embed=embed, ephemeral=True)
+
+    async def handle_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        """จัดการข้อผิดพลาดทั่วไป"""
+        error_message = str(error)
+        logger.error(f"❌ {self.__class__.__name__} error: {error_message}")
+        
+        error_embed = await self._create_base_embed(
+            title=f"{self.EMOJI['error']} เกิดข้อผิดพลาด",
+            description=error_message,
+            color=self.COLORS["error"]
+        )
+        
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=error_embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=error_embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"❌ Error sending error message: {str(e)}")
+
+    async def check_permissions(
+        self, 
+        interaction: discord.Interaction,
+        required_permissions: Dict[str, bool]
+    ) -> bool:
+        """ตรวจสอบ permissions"""
+        if not interaction.guild:
+            await self._send_error_message(
+                interaction,
+                "คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น"
+            )
+            return False
+            
+        missing_perms = []
+        for perm, required in required_permissions.items():
+            if getattr(interaction.user.guild_permissions, perm) != required:
+                missing_perms.append(perm)
+                
+        if missing_perms:
+            await self._handle_missing_permissions(interaction, missing_perms)
+            return False
+            
+        return True
