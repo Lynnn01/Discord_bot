@@ -256,42 +256,136 @@ class DevTools(commands.Cog):
             await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
     async def _handle_sync(self, interaction: discord.Interaction, scope: str):
-        """จัดการการ sync commands"""
+        """จัดการการ sync commands โดยป้องกันคำสั่งซ้ำซ้อน"""
         try:
+            # ตรวจสอบ scope และ guild ID
             if scope == "guild":
                 dev_guild_id = os.getenv("DEV_GUILD_ID")
                 if not dev_guild_id:
                     raise ValueError("ไม่พบ DEV_GUILD_ID ในการตั้งค่า")
-
                 guild = discord.Object(id=int(dev_guild_id))
-                self.bot.tree.copy_global_to(guild=guild)
-                commands = await self.bot.tree.sync(guild=guild)
             else:
                 if self.bot.dev_mode:
                     raise ValueError("ไม่สามารถ sync แบบ global ในโหมด Development")
-                commands = await self.bot.tree.sync()
+                guild = None
 
+            # ดึงข้อมูล commands ทั้งหมดที่มีอยู่
+            current_commands = {}  # Dict เก็บ command ปัจจุบันแยกตามชื่อ
+            if guild:
+                for cmd in self.bot.tree.get_commands(guild=guild):
+                    current_commands[cmd.name] = cmd
+            else:
+                for cmd in self.bot.tree.get_commands():
+                    current_commands[cmd.name] = cmd
+
+            # ลบ commands ทั้งหมดออกก่อน
+            logger.info(f"Removing {len(current_commands)} existing commands...")
+            for cmd_name in current_commands:
+                try:
+                    if guild:
+                        self.bot.tree.remove_command(cmd_name, guild=guild)
+                        logger.debug(f"Removed guild command: {cmd_name}")
+                    else:
+                        self.bot.tree.remove_command(cmd_name)
+                        logger.debug(f"Removed global command: {cmd_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove command {cmd_name}: {e}")
+
+            # รอสักครู่เพื่อให้ Discord API อัพเดท
+            await asyncio.sleep(2)
+
+            # Clear command tree cache
+            self.bot.tree.clear_commands(guild=guild)
+
+            # ตรวจสอบและเตรียม commands ใหม่
+            new_commands = set()  # ใช้ set เพื่อป้องกันการซ้ำ
+            if guild:
+                # Copy global commands ไปยัง guild โดยตรวจสอบการซ้ำ
+                for cmd in self.bot.tree._global_commands.values():
+                    if cmd.name not in new_commands:
+                        self.bot.tree.add_command(cmd, guild=guild)
+                        new_commands.add(cmd.name)
+                        logger.debug(f"Added command to guild: {cmd.name}")
+
+            # Sync commands
+            try:
+                if guild:
+                    commands = await self.bot.tree.sync(guild=guild)
+                else:
+                    commands = await self.bot.tree.sync()
+
+                # ตรวจสอบความซ้ำซ้อนหลัง sync
+                command_names = [cmd.name for cmd in commands]
+                duplicates = [
+                    name for name in command_names if command_names.count(name) > 1
+                ]
+
+                if duplicates:
+                    logger.warning(
+                        f"Found duplicate commands after sync: {set(duplicates)}"
+                    )
+                    # ถ้าพบการซ้ำซ้อน ให้ลองลบและ sync อีกครั้ง
+                    for name in set(duplicates):
+                        if guild:
+                            self.bot.tree.remove_command(name, guild=guild)
+                        else:
+                            self.bot.tree.remove_command(name)
+
+                    # Sync อีกครั้งหลังจากลบ duplicates
+                    if guild:
+                        commands = await self.bot.tree.sync(guild=guild)
+                    else:
+                        commands = await self.bot.tree.sync()
+
+            except Exception as e:
+                logger.error(f"Error during command sync: {e}")
+                raise
+
+            # บันทึกข้อมูลการ sync
             sync_info = {
                 "scope": scope,
-                "count": len(commands),
+                "old_count": len(current_commands),
+                "new_count": len(commands),
                 "timestamp": discord.utils.utcnow(),
             }
             self._last_sync = sync_info
 
+            # สร้าง embed response
             response = discord.Embed(
-                title="✅ Sync Commands", color=discord.Color.green()
+                title="✅ Sync Commands",
+                description="ซิงค์คำสั่งเสร็จสมบูรณ์",
+                color=discord.Color.green(),
             )
-            response.add_field(name="จำนวนคำสั่ง", value=str(len(commands)))
+            response.add_field(
+                name="การดำเนินการ",
+                value=f"```\n"
+                f"คำสั่งเดิม: {len(current_commands)}\n"
+                f"คำสั่งใหม่: {len(commands)}\n"
+                f"```",
+                inline=False,
+            )
             response.add_field(name="Scope", value=scope)
             response.add_field(
                 name="เวลา", value=discord.utils.format_dt(sync_info["timestamp"], "R")
             )
 
+            # เพิ่มรายชื่อคำสั่งทั้งหมด
+            command_list = "\n".join(f"• /{cmd.name}" for cmd in commands)
+            if command_list:
+                response.add_field(
+                    name="รายการคำสั่งที่ใช้งานได้",
+                    value=command_list[:1024],  # จำกัดความยาวไม่เกิน 1024 ตัวอักษร
+                    inline=False,
+                )
+
             await interaction.followup.send(embed=response, ephemeral=True)
-            logger.info(f"Commands synced ({scope}) by {interaction.user}")
+            logger.info(
+                f"Commands synced ({scope}) by {interaction.user} "
+                f"[Old: {len(current_commands)}, New: {len(commands)}]"
+            )
 
         except Exception as e:
-            logger.error(f"Error syncing commands: {e}")
+            logger.error(f"Error in command sync: {e}")
             raise
 
     async def _handle_reload(

@@ -22,7 +22,7 @@ class MyBot(commands.Bot):
     def __init__(self):
         # เพิ่มการตรวจสอบ DEV_MODE
         self.dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
-        
+
         intents = discord.Intents.all()
         super().__init__(
             command_prefix="!",
@@ -31,7 +31,7 @@ class MyBot(commands.Bot):
         )
         # เพิ่มการตั้งค่า command tree
         self.tree.on_error = self._handle_tree_error
-        
+
         # กำหนดค่า base_dir
         self.base_dir = Path(__file__).parent / "src"
 
@@ -56,19 +56,19 @@ class MyBot(commands.Bot):
                 self.base_dir / "commands",
                 self.base_dir / "utils",
             ]
-            
+
             if self.dev_mode:
                 required_folders.append(self.base_dir / "dev_tools")
-                
+
             for folder in required_folders:
                 folder.mkdir(parents=True, exist_ok=True)
                 logger.info(f"✅ ตรวจสอบโฟลเดอร์ {folder.relative_to(self.base_dir)}")
-                
+
                 init_file = folder / "__init__.py"
                 if not init_file.exists():
                     init_file.touch()
                     logger.info(f"✅ สร้างไฟล์ {init_file.relative_to(self.base_dir)}")
-                
+
         except PermissionError:
             logger.error("❌ ไม่มีสิทธิ์ในการสร้างโฟลเดอร์")
             raise
@@ -83,25 +83,25 @@ class MyBot(commands.Bot):
                 dev_guild_id = os.getenv("DEV_GUILD_ID")
                 if not dev_guild_id:
                     raise ValueError("❌ DEV_MODE เปิดอยู่แต่ไม่พบ DEV_GUILD_ID")
-                
+
                 # ออกจาก guild อื่นๆ ทั้งหมดยกเว้น dev guild
                 dev_guild = discord.Object(id=int(dev_guild_id))
                 for guild in self.guilds:
                     if guild.id != int(dev_guild_id):
                         await guild.leave()
                         logger.info(f"👋 ออกจาก guild {guild.name} (Dev Mode)")
-                
+
                 logger.info(f"🔒 Dev Mode: จำกัดการทำงานเฉพาะใน guild {dev_guild_id}")
-            
+
             # โหลด cogs
             cog_list = ["src.cogs.commands", "src.cogs.event_handler"]
             if self.dev_mode:
                 cog_list.append("src.cogs.dev_tools")
-                
+
             for cog in cog_list:
                 await self.load_extension(cog)
                 logger.info(f"✅ โหลด {cog} สำเร็จ")
-                
+
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดใน setup_hook: {str(e)}")
             raise
@@ -114,7 +114,7 @@ class MyBot(commands.Bot):
                 logger.info(f"👋 ปฏิเสธการเข้าร่วม guild {guild.name} (Dev Mode)")
                 await guild.leave()
                 return
-                
+
         logger.info(f"✨ เข้าร่วม guild {guild.name} ({guild.id}) สำเร็จ")
 
     async def on_ready(self):
@@ -122,24 +122,24 @@ class MyBot(commands.Bot):
         logger.info(f"✅ Logged in as {self.user} (ID: {self.user.id})")
         logger.info(f"📊 Connected to {len(self.guilds)} guilds")
 
-    async def _handle_tree_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    async def _handle_tree_error(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ):
         """จัดการ error ที่เกิดจาก command tree"""
         self.stats["errors_caught"] += 1
-        
+
         error_message = "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง"
         if isinstance(error, app_commands.CommandOnCooldown):
             error_message = f"กรุณารอ {error.retry_after:.1f} วินาที"
         elif isinstance(error, app_commands.MissingPermissions):
             error_message = "คุณไม่มีสิทธิ์ใช้คำสั่งนี้"
-            
+
         try:
             await interaction.response.send_message(
                 f"❌ {error_message}", ephemeral=True
             )
         except:
             if not interaction.response.is_done():
-                await interaction.followup.send(
-                    f"❌ {error_message}", ephemeral=True
-                )
-                
+                await interaction.followup.send(f"❌ {error_message}", ephemeral=True)
+
         logger.error(f"Command tree error: {str(error)}")
