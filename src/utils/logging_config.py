@@ -1,145 +1,122 @@
-# utils/logging_config.py
-
 import logging
 import sys
-import codecs
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 
 
-class CustomFormatter(logging.Formatter):
-    """
-    Custom formatter ที่รองรับสี และ emoji สำหรับระดับ log ต่างๆ
-    """
+class PrettyFormatter(logging.Formatter):
+    """สร้าง log format ที่สวยงามและอ่านง่าย"""
+
+    # สีที่ใช้งานบ่อย
+    COLORS = {
+        "WHITE": "\033[37m",
+        "GREEN": "\033[32m",
+        "YELLOW": "\033[33m",
+        "RED": "\033[31m",
+        "BOLD_RED": "\033[31;1m",
+        "RESET": "\033[0m",
+    }
 
     # สีสำหรับแต่ละระดับ log
-    COLORS = {
-        "DEBUG": "\033[37m",  # GRAY
-        "INFO": "\033[32m",  # GREEN
-        "WARNING": "\033[33m",  # YELLOW
-        "ERROR": "\033[31m",  # RED
-        "CRITICAL": "\033[41m",  # RED BACKGROUND
+    LEVEL_COLORS = {
+        "DEBUG": COLORS["WHITE"],
+        "INFO": COLORS["GREEN"],
+        "WARNING": COLORS["YELLOW"],
+        "ERROR": COLORS["RED"],
+        "CRITICAL": COLORS["BOLD_RED"],
     }
 
-    # Emoji สำหรับแต่ละระดับ log
-    EMOJIS = {
-        "DEBUG": "🔍",
-        "INFO": "✨",
-        "WARNING": "⚠️",
-        "ERROR": "❌",
-        "CRITICAL": "🚨",
+    # Emoji และ prefix สำหรับแต่ละระดับ
+    LEVEL_STYLES = {
+        "DEBUG": ("🔍", "DEBUG"),
+        "INFO": ("✨", "INFO"),
+        "WARNING": ("⚠️", "WARN"),
+        "ERROR": ("❌", "ERROR"),
+        "CRITICAL": ("💥", "FATAL"),
     }
 
-    def format(self, record):
-        # เพิ่ม emoji และสีตามระดับ log
-        if not hasattr(record, "emoji"):
-            record.emoji = self.EMOJIS.get(record.levelname, "")
+    def __init__(self, colored: bool = True):
+        """
+        Args:
+            colored: เปิด/ปิดการแสดงสี
+        """
+        self.colored = colored and sys.stderr.isatty()
+        super().__init__()
 
-        if sys.stderr.isatty():  # ตรวจสอบว่ารองรับการแสดงสีหรือไม่
-            color = self.COLORS.get(record.levelname, "")
-            reset = "\033[0m"
-            record.levelname = f"{color}{record.emoji} {record.levelname}{reset}"
+    def format(self, record: logging.LogRecord) -> str:
+        # รับ emoji และ prefix
+        emoji, prefix = self.LEVEL_STYLES.get(record.levelname, ("", record.levelname))
+
+        # จัดรูปแบบเวลา
+        time_str = datetime.fromtimestamp(record.created).strftime("%H:%M:%S")
+
+        # สร้าง prefix สำหรับ log
+        if self.colored:
+            color = self.LEVEL_COLORS.get(record.levelname, "")
+            level_prefix = f"{color}{emoji} {prefix:5}{self.COLORS['RESET']}"
         else:
-            record.levelname = f"{record.emoji} {record.levelname}"
+            level_prefix = f"{emoji} {prefix:5}"
 
-        return super().format(record)
+        # ส่วนของไฟล์และบรรทัด (แสดงเฉพาะ debug)
+        if record.levelno == logging.DEBUG:
+            file_info = f"[{record.filename}:{record.lineno}] "
+        else:
+            file_info = ""
 
-
-class UnicodeStreamHandler(logging.StreamHandler):
-    """
-    Handler ที่รองรับ UTF-8 encoding สำหรับ console output
-    """
-
-    def __init__(self):
-        if sys.stdout.encoding != "utf-8":
-            sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, "strict")
-        super().__init__(sys.stdout)
-
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            stream = self.stream
-            if isinstance(msg, str):
-                stream.write(msg + self.terminator)
-            else:
-                stream.write(msg.encode("utf-8").decode("utf-8") + self.terminator)
-            self.flush()
-        except Exception:
-            self.handleError(record)
+        # รวมข้อความ log
+        return f"{time_str} {level_prefix} {file_info}{record.getMessage()}"
 
 
-class RotatingFileHandler(logging.FileHandler):
-    """
-    Handler ที่สร้างไฟล์ log ใหม่ทุกวัน
-    """
-
-    def __init__(self, base_path: str, encoding: Optional[str] = None):
-        self.base_path = Path(base_path)
-        self.base_path.parent.mkdir(parents=True, exist_ok=True)
-
-        filename = self._get_log_filename()
-        super().__init__(filename, encoding=encoding)
-
-    def _get_log_filename(self) -> str:
-        """สร้างชื่อไฟล์ log ตามวันที่"""
-        today = datetime.now().strftime("%Y-%m-%d")
-        return str(self.base_path.parent / f"{self.base_path.stem}_{today}.log")
-
-
-def setup_logger(log_path: str = "logs/bot.log") -> logging.Logger:
-    """
-    ตั้งค่าระบบ logging
+def setup_logger(log_dir: str = "logs") -> logging.Logger:
+    """ตั้งค่า logger ที่สวยงามและใช้งานง่าย
 
     Args:
-        log_path: ที่อยู่ของไฟล์ log
+        log_dir: โฟลเดอร์สำหรับเก็บไฟล์ log
 
     Returns:
-        logging.Logger: configured logger instance
+        Logger ที่ตั้งค่าแล้ว
     """
     # สร้าง logger
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
-    # ลบ handler เดิม
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
+    # ล้าง handler เก่า
+    logger.handlers.clear()
 
-    # สร้าง formatter
-    detailed_formatter = CustomFormatter(
-        "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
-    )
-    simple_formatter = CustomFormatter("%(levelname)s - %(message)s")
+    # ตั้งค่า console handler
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    console.setFormatter(PrettyFormatter(colored=True))
+    logger.addHandler(console)
 
-    # สร้างและตั้งค่า console handler
-    console_handler = UnicodeStreamHandler()
-    console_handler.setFormatter(simple_formatter)
-    console_handler.setLevel(logging.INFO)
+    # ตั้งค่า file handler
+    try:
+        # สร้างโฟลเดอร์ถ้ายังไม่มี
+        log_path = Path(log_dir)
+        log_path.mkdir(parents=True, exist_ok=True)
 
-    # สร้างและตั้งค่า file handler
-    file_handler = RotatingFileHandler(log_path, encoding="utf-8")
-    file_handler.setFormatter(detailed_formatter)
-    file_handler.setLevel(logging.DEBUG)
+        # สร้างไฟล์ log ตามวันที่
+        today = datetime.now().strftime("%Y-%m-%d")
+        file_handler = logging.FileHandler(
+            log_path / f"bot_{today}.log", encoding="utf-8"
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(PrettyFormatter(colored=False))
+        logger.addHandler(file_handler)
 
-    # เพิ่ม handlers
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    # บันทึก log เริ่มต้น
-    logger.info("=" * 50)
-    logger.info("🚀 เริ่มต้นการทำงานของระบบ")
-    logger.debug(f"📁 บันทึก log ที่: {log_path}")
+    except Exception as e:
+        console.error(f"ไม่สามารถสร้างไฟล์ log ได้: {e}")
 
     return logger
 
 
-# ตัวอย่างการใช้งาน
 if __name__ == "__main__":
+    # ตัวอย่างการใช้งาน
     logger = setup_logger()
 
-    # ทดสอบ log ระดับต่างๆ
-    logger.debug("🔍 นี่คือข้อความ Debug")
-    logger.info("✨ นี่คือข้อความ Info")
-    logger.warning("⚠️ นี่คือข้อความ Warning")
-    logger.error("❌ นี่คือข้อความ Error")
-    logger.critical("🚨 นี่คือข้อความ Critical")
+    logger.debug("เริ่มโหลดการตั้งค่า...")
+    logger.info("บอทพร้อมใช้งานแล้ว")
+    logger.warning("พบการเชื่อมต่อที่ช้า")
+    logger.error("ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้")
+    logger.critical("บอทหยุดทำงานเนื่องจากข้อผิดพลาดร้ายแรง")
