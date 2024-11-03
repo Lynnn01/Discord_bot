@@ -4,6 +4,7 @@ from discord import app_commands
 from datetime import datetime
 from typing import Optional
 import logging
+import os
 
 from ..commands.ping_command import PingCommand
 from ..commands.roll_command import RollCommand
@@ -27,33 +28,54 @@ class CommandsCog(commands.Cog):
         # Register commands
         self._setup_commands()
 
-    def _setup_commands(self):
+    async def _setup_commands(self):
         """ตั้งค่า commands"""
+        try:
+            # ตรวจสอบและลบคำสั่งที่มีอยู่แล้ว
+            for cmd_name in ["ping", "roll", "help"]:
+                existing_cmd = self.bot.tree.get_command(cmd_name)
+                if existing_cmd:
+                    self.bot.tree.remove_command(cmd_name)
+                    logger.info(f"🔄 ลบคำสั่ง {cmd_name} ที่ซ้ำซ้อน")
 
-        # Command: ping
-        @app_commands.command(name="ping", description="ตรวจสอบการเชื่อมต่อ")
-        async def ping(interaction: discord.Interaction):
-            await self.ping_cmd.execute(interaction, self.start_time, self.bot.stats)
+            # สร้างคำสั่งใหม่
+            commands = {
+                "ping": self.ping_cmd.execute,
+                "roll": self.roll_cmd.execute,
+                "help": self.help_cmd.execute
+            }
 
-        # Command: roll
-        @app_commands.command(name="roll", description="ทอยลูกเต๋า")
-        async def roll(interaction: discord.Interaction):
-            await self.roll_cmd.execute(interaction, self.bot.stats)
+            for cmd_name, cmd_func in commands.items():
+                cmd = app_commands.Command(
+                    name=cmd_name,
+                    description=self.command_descriptions.get(cmd_name, "ไม่มีคำอธิบาย"),
+                    callback=cmd_func
+                )
+                self.bot.tree.add_command(cmd)
+                logger.debug(f"✅ ลงทะเบียนคำสั่ง: {cmd_name}")
 
-        # Command: help
-        @app_commands.command(name="help", description="ดูวิธีใช้คำสั่ง")
-        @app_commands.describe(command="ชื่อคำสั่งที่ต้องการดูรายละเอียด")
-        async def help(interaction: discord.Interaction, command: Optional[str] = None):
-            await self.help_cmd.execute(
-                interaction, self.bot.stats, command_name=command
-            )
+            # Sync commands หลังจาก ready
+            self.bot.add_listener(self._sync_commands, 'on_ready')
+            
+        except Exception as e:
+            logger.error(f"❌ เกิดข้อผิดพลาดในการตั้งค่าคำสั่ง: {str(e)}")
+            raise
 
-        # เพิ่ม commands เข้า CommandTree
-        for cmd in [ping, roll, help]:
-            self.bot.tree.add_command(cmd)
-            logger.debug(f"✅ Registered command: {cmd.name}")
-
-        logger.info("✅ Registered all commands successfully")
+    async def _sync_commands(self):
+        """Sync commands หลังจาก bot ready"""
+        try:
+            if self.bot.dev_mode:
+                guild_id = int(os.getenv("DEV_GUILD_ID"))
+                guild = discord.Object(id=guild_id)
+                await self.bot.tree.sync(guild=guild)
+            else:
+                await self.bot.tree.sync()
+                
+            commands = self.bot.tree.get_commands()
+            logger.info(f"📝 ลงทะเบียนคำสั่งสำเร็จ: {', '.join(cmd.name for cmd in commands)}")
+            
+        except Exception as e:
+            logger.error(f"❌ เกิดข้อผิดพลาดในการ sync คำสั่ง: {str(e)}")
 
     @commands.Cog.listener()
     async def on_ready(self):

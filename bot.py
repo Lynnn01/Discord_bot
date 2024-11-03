@@ -76,32 +76,25 @@ class MyBot(commands.Bot):
             logger.error(f"❌ เกิดข้อผิดพลาดในการสร้างโครงสร้างไฟล์: {str(e)}")
             raise
 
-    async def setup_hook(self):
-        """ฟังก์ชันที่จะทำงานหลังจาก bot พร้อมทำงาน"""
-        try:
-            if self.dev_mode:
-                dev_guild_id = os.getenv("DEV_GUILD_ID")
-                if not dev_guild_id:
-                    raise ValueError("❌ DEV_MODE เปิดอยู่แต่ไม่พบ DEV_GUILD_ID")
-                
-                # ออกจาก guild อื่นๆ ทั้งหมดยกเว้น dev guild
-                dev_guild = discord.Object(id=int(dev_guild_id))
-                for guild in self.guilds:
-                    if guild.id != int(dev_guild_id):
-                        await guild.leave()
-                        logger.info(f"👋 ออกจาก guild {guild.name} (Dev Mode)")
-                
-                logger.info(f"🔒 Dev Mode: จำกัดการทำงานเฉพาะใน guild {dev_guild_id}")
+    async def _check_guilds(self):
+        """ตรวจสอบและจัดการ guild ในโหมดพัฒนา"""
+        if not self.dev_mode:
+            return
             
-            # โหลด cogs
-            cog_list = ["src.cogs.commands", "src.cogs.event_handler"]
-            if self.dev_mode:
-                cog_list.append("src.cogs.dev_tools")
+        dev_guild_id = int(os.getenv("DEV_GUILD_ID"))
+        for guild in self.guilds:
+            if guild.id != dev_guild_id:
+                logger.info(f"👋 ออกจาก guild {guild.name} (Dev Mode)")
+                await guild.leave()
                 
-            for cog in cog_list:
-                await self.load_extension(cog)
-                logger.info(f"✅ โหลด {cog} สำเร็จ")
-                
+        logger.info(f"🔒 จำกัดการทำงานเฉพาะใน guild {dev_guild_id}")
+
+    async def setup_hook(self):
+        """เพิ่มการเรียก _check_guilds"""
+        try:
+            await self._check_guilds()
+            # โค้ดเดิมที่มีอยู่...
+            
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดใน setup_hook: {str(e)}")
             raise
