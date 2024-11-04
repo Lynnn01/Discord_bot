@@ -44,6 +44,10 @@ class EventHandler(commands.Cog):
         Args:
             guild: Discord guild ที่ bot เข้าร่วม
         """
+        # ตรวจสอบ Dev Mode ก่อน
+        if await self.bot.handle_dev_mode(guild):
+            return
+            
         logger.info(f"🎉 เข้าร่วมเซิร์ฟเวอร์: {guild.name} (ID: {guild.id})")
 
         # สร้าง embed แจ้งเตือน
@@ -55,7 +59,7 @@ class EventHandler(commands.Cog):
             .add_field("เซิร์ฟเวอร์", guild.name, emoji="🏢")
             .add_field("สมาชิก", str(guild.member_count), emoji="👥")
             .add_field("เจ้าของเซิร์ฟเวอร์", str(guild.owner), emoji="👑")
-            .set_footer("Discord Bot")
+            .set_footer("Discord Bot", emoji="🤖")
             .set_timestamp()
             .build()
         )
@@ -112,70 +116,48 @@ class EventHandler(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        """
-        จัดการเมื่อมีสมาชิกใหม่เข้าร่วมเซิร์ฟเวอร์
-
-        Args:
-            member: Discord member ที่เข้าร่วม
-        """
-        # สร้าง embed ต้อนรับ
-        embed = (
-            EmbedBuilder()
-            .set_title("ยินดีต้อนรับสมาชิกใหม่!", emoji="👋")
-            .set_description(f"ยินดีต้อนรับ {member.mention} เข้าสู่เซิร์ฟเวอร์!")
-            .set_color("success")
-            .add_field("สมาชิกคนที่", str(member.guild.member_count), emoji="👥")
-            .set_footer(f"User ID: {member.id}")
-            .set_timestamp()
-            .build()
-        )
-
-        # ส่ง embed ไปยังช่องทางต้อนรับ
+        """จัดการเมื่อมีสมาชิกเข้าร่วมเซิร์ฟเวอร์"""
         try:
-            welcome_channel = member.guild.system_channel
-            if welcome_channel:
-                await welcome_channel.send(embed=embed)
+            # หาช่องทางที่เหมาะสม
+            channel = await self._find_suitable_channel(member.guild)
+            if not channel:
+                return
+
+            # สร้าง welcome embed
+            embed = EmbedBuilder.create_welcome_embed(
+                member=member,
+                member_count=member.guild.member_count,
+                guild_name=member.guild.name,
+                thumbnail_url=member.display_avatar.url
+            )
+
+            await channel.send(embed=embed)
+            logger.info(f"👋 ส่งข้อความต้อนรับให้ {member.name} ใน {member.guild.name}")
+
         except Exception as e:
-            logger.error(f"❌ ไม่สามารถส่งข้อความต้อนรับได้: {str(e)}")
+            logger.error(f"❌ เกิดข้อผิดพลาดในการส่งข้อความต้อนรับ: {str(e)}")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """
-        จัดการเมื่อมีข้อความใหม่
-
-        Args:
-            message: Discord message
-        """
-        # ไม่สนใจข้อความจาก bot
-        if message.author.bot:
+        """จัดการเมื่อมีข้อความใหม่"""
+        if message.author.bot or not message.guild:
             return
 
-        # เพิ่มสถิติ
-        self.bot.stats["messages_processed"] += 1
-
-        # ตรวจสอบ mentions
+        # ตอบกลับเมื่อถูก mention
         if self.bot.user in message.mentions:
-            await self._handle_bot_mention(message)
+            try:
+                embed = EmbedBuilder.create_help_embed(
+                    prefix=self.bot.command_prefix,
+                    description="ใช้คำสั่ง /help เพื่อดูคำสั่งทั้งหมด",
+                    user=message.author,
+                    command_count=len(self.bot.tree.get_commands())
+                )
+                
+                await message.reply(embed=embed)
+                logger.info(f"💬 ตอบกลับ mention จาก {message.author.name}")
 
-    async def _handle_bot_mention(self, message: discord.Message):
-        """
-        จัดการเมื่อมีการ mention bot
-
-        Args:
-            message: Discord message ที่ mention bot
-        """
-        embed = (
-            EmbedBuilder()
-            .set_title("สวัสดี!", emoji="👋")
-            .set_description("ใช้คำสั่ง /help เพื่อดูคำสั่งทั้งหมด")
-            .set_color("info")
-            .add_field("Prefix", self.bot.command_prefix, emoji="⌨️")
-            .set_footer(f"Mentioned by {message.author.name}")
-            .set_timestamp()
-            .build()
-        )
-
-        await message.channel.send(embed=embed)
+            except Exception as e:
+                logger.error(f"❌ เกิดข้อผิดพลาดในการตอบกลับ mention: {str(e)}")
 
 
 async def setup(bot):

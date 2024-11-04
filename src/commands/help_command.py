@@ -35,7 +35,7 @@ class HelpCommand(BaseCommand):
             "ทั่วไป": "🔧",
             "เกม": "🎮",
             "ระบบ": "⚙️",
-            "พัฒนา": "🛠️",  # สำหรับ dev commands
+            "พัฒนา": "🛠️",  # สำรับ dev commands
         }
         self.command_info = self._setup_command_info()
 
@@ -257,9 +257,9 @@ class HelpCommand(BaseCommand):
 
         # เพิ่มข้อความ Dev Mode ถ้าจำเป็น
         if cmd_info.dev_only:
-            builder.set_footer(text="🛠️ คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น", emoji="⚠️")
+            builder.set_footer("คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น", emoji="⚠️")
         else:
-            builder.set_footer(text="💡 เคล็ดลับ: ใช้ /help เพื่อดูคำสั่งทั้งหมด")
+            builder.set_footer("💡 เคล็ดลับ: ใช้ /help เพื่อดูคำสั่งทั้งหมด")
 
         return builder.build()
 

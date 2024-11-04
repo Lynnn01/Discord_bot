@@ -15,13 +15,14 @@ sys.path.insert(0, str(src_path))
 
 from src.utils.logging_config import setup_logger
 from src.utils.error_handler import GlobalErrorHandler
+from src.utils.dev_mode_mixin import DevModeMixin
 
 logger = setup_logger()
 
 
-class MyBot(commands.Bot):
+class MyBot(commands.Bot, DevModeMixin):
     def __init__(self):
-        # เพิ่มการตรวจสอบ DEV_MODE
+        # ตั้งค่า dev_mode จาก environment variable
         self.dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
 
         intents = discord.Intents.all()
@@ -82,19 +83,15 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         """ฟังก์ชันที่จะทำงานหลังจาก bot พร้อมทำงาน"""
         try:
+            # ตรวจสอบ Dev Mode
+            await self.validate_dev_guild()
+            
             if self.dev_mode:
-                dev_guild_id = os.getenv("DEV_GUILD_ID")
-                if not dev_guild_id:
-                    raise ValueError("❌ DEV_MODE เปิดอยู่แต่ไม่พบ DEV_GUILD_ID")
-
                 # ออกจาก guild อื่นๆ ทั้งหมดยกเว้น dev guild
-                dev_guild = discord.Object(id=int(dev_guild_id))
                 for guild in self.guilds:
-                    if guild.id != int(dev_guild_id):
-                        await guild.leave()
-                        logger.info(f"👋 ออกจาก guild {guild.name} (Dev Mode)")
-
-                logger.info(f"🔒 Dev Mode: จำกัดการทำงานเฉพาะใน guild {dev_guild_id}")
+                    await self.handle_dev_mode(guild)
+                    
+                logger.info(f"🔒 Dev Mode: จำกัดการทำงานเฉพาะใน guild {self.dev_guild_id}")
 
             # โหลด cogs
             cog_list = ["src.cogs.commands", "src.cogs.event_handler"]
@@ -131,20 +128,3 @@ class MyBot(commands.Bot):
         error: app_commands.AppCommandError
     ):
         await self.error_handler.handle_error(interaction, error)
-
-    async def handle_dev_mode(self, guild: discord.Guild) -> bool:
-        """จัดการ Dev Mode
-        
-        Returns:
-            bool: True ถ้าควรออกจาก guild
-        """
-        if not self.dev_mode:
-            return False
-            
-        dev_guild_id = int(os.getenv("DEV_GUILD_ID", "0"))
-        if guild.id != dev_guild_id:
-            logger.info(f"👋 ออกจาก guild {guild.name} (Dev Mode)")
-            await guild.leave()
-            return True
-            
-        return False

@@ -1,260 +1,176 @@
 # utils/embed_builder.py
 
-from typing import Optional, Dict, Any, Union
-import discord
+from typing import Optional, Union, Any
 from datetime import datetime
+import discord
 
 
 class EmbedBuilder:
-    """
-    คลาสสำหรับสร้าง Discord Embed แบบ Builder pattern
-    รองรับการสร้าง embed ที่ซับซ้อนได้ง่าย
-    """
+    """Builder class สำหรับสร้าง Discord Embed"""
+    
+    # สีมาตรฐานที่ใช้บ่อย
+    COLORS = {
+        "default": discord.Color.blurple(),
+        "success": discord.Color.green(),
+        "warning": discord.Color.yellow(),
+        "error": discord.Color.red(),
+        "info": discord.Color.blue()
+    }
 
     def __init__(self):
         """สร้าง embed เปล่า"""
         self.embed = discord.Embed()
-        self._setup_constants()
-
-    def _setup_constants(self) -> None:
-        """ตั้งค่าค่าคงที่ที่ใช้บ่อย"""
-        self.COLORS = {
-            "default": discord.Color.blurple(),
-            "success": discord.Color.green(),
-            "error": discord.Color.red(),
-            "warning": discord.Color.yellow(),
-            "info": discord.Color.blue(),
-            "gold": discord.Color.gold(),
-            "special": discord.Color.purple(),
-        }
-
-        self.EMOJIS = {
-            "success": "✅",
-            "error": "❌",
-            "warning": "⚠️",
-            "info": "ℹ️",
-            "special": "✨",
-            "arrow": "➡️",
-            "gear": "⚙️",
-            "time": "⏰",
-            "user": "👤",
-            "stats": "📊",
-            "note": "📝",
-        }
-
-    def set_title(
-        self, title: str, url: Optional[str] = None, emoji: Optional[str] = None
-    ) -> "EmbedBuilder":
+        
+    # Template Methods สำหรับ Embed ที่ใช้บ่อย
+    @classmethod
+    def create_welcome_embed(
+        cls,
+        member: Union[discord.Member, str],
+        member_count: int,
+        guild_name: Optional[str] = None,
+        thumbnail_url: Optional[str] = None
+    ) -> discord.Embed:
         """
-        กำหนดหัวข้อของ embed
-
+        สร้าง embed ต้อนรับสมาชิกใหม่
+        
         Args:
-            title: หัวข้อหลัก
-            url: ลิงก์ที่จะเชื่อมกับหัวข้อ (optional)
-            emoji: emoji ที่จะแสดงหน้าหัวข้อ (optional)
+            member: สมาชิกที่เข้าร่วม
+            member_count: จำนวนสมาชิกทั้งหมด
+            guild_name: ชื่อเซิร์ฟเวอร์ (optional)
+            thumbnail_url: URL รูปภาพขนาดเล็ก (optional)
         """
-        if emoji:
-            title = f"{emoji} {title}"
-        self.embed.title = title
-        if url:
-            self.embed.url = url
+        member_mention = member.mention if isinstance(member, discord.Member) else member
+        
+        builder = (
+            cls()
+            .set_title("ยินดีต้อนรับสมาชิกใหม่!", emoji="👋")
+            .set_description(
+                f"ยินดีต้อนรับ {member_mention} "
+                f"เข้าสู่{f'เซิร์ฟเวอร์ {guild_name}' if guild_name else 'เซิร์ฟเวอร์'}!"
+            )
+            .set_color("success")
+            .add_field("สมาชิกคนที่", str(member_count), emoji="👥")
+        )
+        
+        if thumbnail_url:
+            builder.embed.set_thumbnail(url=thumbnail_url)
+            
+        if isinstance(member, discord.Member):
+            builder.set_footer(f"User ID: {member.id}")
+            
+        return builder.set_timestamp().build()
+
+    @classmethod
+    def create_help_embed(
+        cls,
+        prefix: str,
+        description: Optional[str] = None,
+        user: Optional[discord.User] = None,
+        command_count: Optional[int] = None
+    ) -> discord.Embed:
+        """
+        สร้าง embed สำหรับคำสั่ง help
+        
+        Args:
+            prefix: Prefix ของคำสั่ง
+            description: คำอธิบายเพิ่มเติม (optional)
+            user: ผู้ใช้ที่เรียกคำสั่ง (optional)
+            command_count: จำนวนคำสั่งทั้งหมด (optional)
+        """
+        builder = (
+            cls()
+            .set_title("คำสั่งที่ใช้ได้", emoji="❔")
+            .set_color("info")
+            .add_field("Prefix", prefix, emoji="⌨️", inline=True)
+        )
+        
+        if description:
+            builder.set_description(description)
+            
+        if command_count:
+            builder.add_field("จำนวนคำสั่ง", str(command_count), emoji="📜", inline=True)
+            
+        if user:
+            builder.set_footer(f"Requested by {user.name}")
+            
+        return builder.set_timestamp().build()
+
+    @classmethod
+    def create_error_embed(
+        cls,
+        title: str = "เกิดข้อผิดพลาด",
+        description: str = "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณา��องใหม่อีกครั้ง",
+        error_details: Optional[str] = None
+    ) -> discord.Embed:
+        """
+        สร้าง embed สำหรับแสดงข้อผิดพลาด
+        
+        Args:
+            title: หัวข้อข้อผิดพลาด
+            description: คำอธิบายข้อผิดพลาด
+            error_details: รายละเอียดข้อผิดพลาดเพิ่มเติม (optional)
+        """
+        builder = (
+            cls()
+            .set_title(title, emoji="❌")
+            .set_description(description)
+            .set_color("error")
+        )
+        
+        if error_details:
+            builder.add_field("รายละเอียด", error_details, emoji="ℹ️")
+            
+        return builder.set_timestamp().build()
+
+    # Utility Methods
+    def set_title(self, title: str, emoji: Optional[str] = None) -> "EmbedBuilder":
+        """กำหนดหัวข้อของ embed"""
+        self.embed.title = f"{emoji} {title}" if emoji else title
         return self
 
-    def set_description(
-        self, description: str, emoji: Optional[str] = None
-    ) -> "EmbedBuilder":
-        """
-        กำหนดคำอธิบายของ embed
-
-        Args:
-            description: คำอธิบาย
-            emoji: emoji ที่จะแสดงหน้าคำอธิบาย (optional)
-        """
-        if emoji:
-            description = f"{emoji} {description}"
+    def set_description(self, description: str) -> "EmbedBuilder":
+        """กำหนดคำอธิบายของ embed"""
         self.embed.description = description
         return self
 
     def set_color(self, color: Union[str, discord.Color, int]) -> "EmbedBuilder":
-        """
-        กำหนดสีของ embed
-
-        Args:
-            color: สีที่ต้องการ (ใช้ชื่อจาก COLORS หรือ discord.Color หรือค่า RGB)
-        """
+        """กำหนดสีของ embed"""
         if isinstance(color, str):
-            self.embed.color = self.COLORS.get(color, self.COLORS["default"])
+            self.embed.color = self.COLORS.get(color.lower(), self.COLORS["default"])
         else:
             self.embed.color = color
         return self
 
     def add_field(
-        self, name: str, value: Any, inline: bool = True, emoji: Optional[str] = None
+        self, 
+        name: str, 
+        value: Any, 
+        emoji: Optional[str] = None,
+        inline: bool = True
     ) -> "EmbedBuilder":
-        """
-        เพิ่ม field ใน embed
-
-        Args:
-            name: ชื่อ field
-            value: ค่าใน field
-            inline: จัดเรียงแนวนอน (True) หรือแนวตั้ง (False)
-            emoji: emoji ที่จะแสดงหน้าชื่อ field (optional)
-        """
-        if emoji:
-            name = f"{emoji} {name}"
-        self.embed.add_field(name=name, value=str(value), inline=inline)
+        """เพิ่ม field ใน embed"""
+        field_name = f"{emoji} {name}" if emoji else name
+        self.embed.add_field(name=field_name, value=str(value), inline=inline)
         return self
 
-    def add_fields(self, fields: Dict[str, Any], inline: bool = True) -> "EmbedBuilder":
+    def set_footer(self, text: str, emoji: Optional[str] = None) -> "EmbedBuilder":
         """
-        เพิ่มหลาย fields พร้อมกัน
-
-        Args:
-            fields: dictionary ของ fields ที่จะเพิ่ม {name: value}
-            inline: จัดเรียงแนวนอน (True) หรือแนวตั้ง (False)
-        """
-        for name, value in fields.items():
-            self.add_field(name=name, value=value, inline=inline)
-        return self
-
-    def set_author(
-        self, name: str, url: Optional[str] = None, icon_url: Optional[str] = None
-    ) -> "EmbedBuilder":
-        """
-        กำหนดข้อมูลผู้สร้าง
-
-        Args:
-            name: ชื่อผู้สร้าง
-            url: ลิงก์ที่จะเชื่อมกับชื่อ (optional)
-            icon_url: URL ของไอคอน (optional)
-        """
-        self.embed.set_author(name=name, url=url, icon_url=icon_url)
-        return self
-
-    def set_thumbnail(self, url: str) -> "EmbedBuilder":
-        """
-        กำหนดรูปขนาดเล็ก
-
-        Args:
-            url: URL ของรูป
-        """
-        self.embed.set_thumbnail(url=url)
-        return self
-
-    def set_image(self, url: str) -> "EmbedBuilder":
-        """
-        กำหนดรูปขนาดใหญ่
-
-        Args:
-            url: URL ของรูป
-        """
-        self.embed.set_image(url=url)
-        return self
-
-    def set_footer(
-        self, text: str, icon_url: Optional[str] = None, emoji: Optional[str] = None
-    ) -> "EmbedBuilder":
-        """
-        กำหนด footer
-
+        กำหนด footer ของ embed
+        
         Args:
             text: ข้อความใน footer
-            icon_url: URL ของไอคอน (optional)
-            emoji: emoji ที่จะแสดงหน้าข้อความ (optional)
+            emoji: emoji ที่จะแสดงใน footer (optional)
         """
         if emoji:
             text = f"{emoji} {text}"
-        self.embed.set_footer(text=text, icon_url=icon_url)
+        self.embed.set_footer(text=text)
         return self
 
     def set_timestamp(self, timestamp: Optional[datetime] = None) -> "EmbedBuilder":
-        """
-        กำหนดเวลา
-
-        Args:
-            timestamp: เวลาที่ต้องการ (ถ้าไม่ระบุจะใช้เวลาปัจจุบัน)
-        """
-        self.embed.timestamp = timestamp or discord.utils.utcnow()
+        """กำหนดเวลาของ embed"""
+        self.embed.timestamp = timestamp or datetime.now()
         return self
 
     def build(self) -> discord.Embed:
-        """
-        สร้าง embed
-
-        Returns:
-            discord.Embed: Embed ที่สร้างเสร็จแล้ว
-        """
+        """สร้าง embed object"""
         return self.embed
-
-    @classmethod
-    def create_simple_embed(
-        cls, title: str, description: str, color: Union[str, discord.Color] = "default"
-    ) -> discord.Embed:
-        """
-        สร้าง embed อย่างง่าย
-
-        Args:
-            title: หัวข้อ
-            description: คำอธิบาย
-            color: สี (default: blurple)
-
-        Returns:
-            discord.Embed: Embed ที่สร้างเสร็จแล้ว
-        """
-        return (
-            cls()
-            .set_title(title)
-            .set_description(description)
-            .set_color(color)
-            .set_timestamp()
-            .build()
-        )
-
-    @classmethod
-    def create_error_embed(
-        cls, title: str = "เกิดข้อผิดพลาด", description: str = "กรุณาลองใหม่อีกครั้ง"
-    ) -> discord.Embed:
-        """
-        สร้าง embed สำหรับแสดงข้อผิดพลาด
-
-        Args:
-            title: หัวข้อ
-            description: คำอธิบาย
-
-        Returns:
-            discord.Embed: Embed ข้อผิดพลาด
-        """
-        return (
-            cls()
-            .set_title(title, emoji="❌")
-            .set_description(description)
-            .set_color("error")
-            .set_timestamp()
-            .build()
-        )
-
-
-# ตัวอย่างการใช้งาน
-if __name__ == "__main__":
-    # สร้าง embed แบบละเอียด
-    embed = (
-        EmbedBuilder()
-        .set_title("ยินดีต้อนรับ", emoji="👋")
-        .set_description("ระบบพร้อมใช้งาน")
-        .set_color("success")
-        .add_field("สถานะ", "ออนไลน์", emoji="🟢")
-        .add_field("เวลาทำงาน", "2 ชั่วโมง", emoji="⏰")
-        .set_footer("พัฒนาโดย Bot Team", emoji="🤖")
-        .set_timestamp()
-        .build()
-    )
-
-    # สร้าง embed อย่างง่าย
-    simple_embed = EmbedBuilder.create_simple_embed(
-        title="แจ้งเตือน", description="มีการอัพเดทใหม่", color="info"
-    )
-
-    # สร้าง embed แสดงข้อผิดพลาด
-    error_embed = EmbedBuilder.create_error_embed(
-        title="ไม่สามารถดำเนินการได้", description="ไม่พบข้อมูลที่ต้องการ"
-    )
