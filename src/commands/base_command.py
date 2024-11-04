@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any, Union
 from datetime import datetime
 
 from src.utils.exceptions import UserError, PermissionError
+from src.utils.ui_constants import UIConstants
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class BaseCommand(ABC):
     def __init__(self, bot):
         self.bot = bot
         self._setup_logger()
-        self._setup_constants()
+        self.ui = UIConstants()
 
     def _setup_logger(self) -> None:
         """ตั้งค่า logger สำหรับคำสั่ง"""
@@ -31,24 +32,6 @@ class BaseCommand(ABC):
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
-
-    def _setup_constants(self) -> None:
-        """ตั้งค่าค่าคงที่สำหรับคำสั่ง"""
-        self.COLORS = {
-            "success": discord.Color.green(),
-            "error": discord.Color.red(),
-            "warning": discord.Color.yellow(),
-            "info": discord.Color.blue(),
-        }
-
-        self.EMOJI = {
-            "success": "✅",
-            "error": "❌",
-            "warning": "⚠️",
-            "info": "ℹ️",
-            "loading": "⏳",
-            "done": "✨",
-        }
 
     @abstractmethod
     async def execute(
@@ -79,9 +62,9 @@ class BaseCommand(ABC):
             ephemeral: แสดงข้อความแค่ผู้ใช้คนเดียวเห็นหรือไม่
         """
         embed = await self._create_base_embed(
-            title=f"{self.EMOJI['error']} เกิดข้อผิดพลาด",
+            title=f"{self.ui.EMOJI['error']} เกิดข้อผิดพลาด",
             description=error_message or "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
-            color=self.COLORS["error"],
+            color=self.ui.COLORS["error"],
         )
         await self._safe_respond(interaction, embed=embed, ephemeral=ephemeral)
 
@@ -161,9 +144,9 @@ class BaseCommand(ABC):
             missing_perms = ", ".join(missing_perms)
 
         embed = await self._create_base_embed(
-            title=f"{self.EMOJI['error']} ไม่มีสิทธิ์",
+            title=f"{self.ui.EMOJI['error']} ไม่มีสิทธิ์",
             description=f"คุณไม่มีสิทธิ์ที่จำเป็น: {missing_perms}",
-            color=self.COLORS["error"],
+            color=self.ui.COLORS["error"],
         )
         await self._safe_respond(interaction, embed=embed, ephemeral=True)
 
@@ -178,9 +161,9 @@ class BaseCommand(ABC):
             message: ข้อความที่จะแสดง
         """
         embed = await self._create_base_embed(
-            title=f"{self.EMOJI['loading']} กำลังดำเนินการ",
+            title=f"{self.ui.EMOJI['loading']} กำลังดำเนินการ",
             description=message,
-            color=self.COLORS["info"],
+            color=self.ui.COLORS["info"],
         )
         await self._safe_respond(interaction, embed=embed, ephemeral=True)
 

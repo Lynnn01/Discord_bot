@@ -298,6 +298,8 @@ class DevTools(commands.GroupCog, group_name="dev"):
                 color=self.COLORS["success"]
             )
 
+        
+
         await self._safe_respond(interaction, embed=embed)
 
     async def _handle_reload(self, interaction: discord.Interaction, cog_name: Optional[str] = None) -> None:
@@ -425,89 +427,52 @@ class DevTools(commands.GroupCog, group_name="dev"):
     async def _create_status_embed(self) -> discord.Embed:
         """สร้าง embed สำหรับแสดงสถานะของระบบ"""
         try:
-            # คำนวณ uptime
-            uptime = None
-            if hasattr(self.bot, "start_time"):
-                if isinstance(self.bot.start_time, (int, float)):
-                    start_datetime = datetime.fromtimestamp(self.bot.start_time)
-                    uptime = datetime.now() - start_datetime
-                elif isinstance(self.bot.start_time, datetime):
-                    uptime = datetime.now() - self.bot.start_time
-
+            uptime = self._calculate_uptime()
             uptime_text = str(uptime).split(".")[0] if uptime else "N/A"
 
-            status_embed = await self._create_base_embed(
-                title=f"{self.EMOJI['info']} สถานะระบบ",
-                description="ข้อมูลการทำงานของระบบ",
-                color=self.COLORS["info"]
-            )
-
-            # Bot Info
-            status_embed.add_field(
-                name=f"{self.EMOJI['info']} ข้อมูลบอท",
-                value=f"```\n"
-                f"โหมด: {'Development' if self.bot.dev_mode else 'Production'}\n"
-                f"เซิร์ฟเวอร์: {len(self.bot.guilds)}\n"
-                f"คำสั่ง: {len(self.bot.tree.get_commands())}\n"
-                f"เวลาทำงาน: {uptime_text}\n"
-                f"```",
-                inline=False,
-            )
-
-            # Last Sync Info
-            if self._last_sync:
-                sync_time = discord.utils.format_dt(self._last_sync["timestamp"], "R")
-                status_embed.add_field(
-                    name=f"{self.EMOJI['loading']} Sync ล่าสุด",
+            return (
+                EmbedBuilder()
+                .set_title(
+                    "สถานะระบบ",
+                    emoji=self.ui.EMOJI["info"]
+                )
+                .set_description("ข้อมูลการทำงานของระบบ")
+                .set_color(self.ui.COLORS["info"])
+                .add_field(
+                    name="ข้อมูลบอท",
                     value=f"```\n"
-                    f"ขอบเขต: {self._last_sync['scope']}\n"
-                    f"จำนวนคำสั่ง: {self._last_sync['count']}\n"
-                    f"เวลา: {sync_time}\n"
+                    f"โหมด: {'Development' if self.bot.dev_mode else 'Production'}\n"
+                    f"เซิร์ฟเวอร์: {len(self.bot.guilds)}\n"
+                    f"คำสั่ง: {len(self.bot.tree.get_commands())}\n"
+                    f"เวลาทำงาน: {uptime_text}\n"
                     f"```",
-                    inline=False,
-                )
-
-            # System Stats
-            process_stats = await self._get_bot_process_info()
-            if process_stats:
-                status_embed.add_field(
-                    name=f"{self.EMOJI['done']} สถิติระบบ",
-                    value=f"```\n"
-                    f"หน่วยความจำ: {process_stats['memory_mb']:.1f} MB\n"
-                    f"CPU: {process_stats['cpu_percent']}%\n"
-                    f"Threads: {process_stats['threads']}\n"
-                    f"คำสั่งที่ใช้: {self.bot.stats['commands_used']}\n"
-                    f"ข้อผิดพลาด: {self.bot.stats['errors_caught']}\n"
-                    f"ข้อความที่ประมวลผล: {self.bot.stats['messages_processed']}\n"
-                    f"```",
-                    inline=False,
-                )
-
-            # Recent Activity
-            recent_commands = self._history.get_recent(5)
-            if recent_commands:
-                activity_text = "\n".join(
-                    f"• {entry['user']}: {entry['action']} "
-                    f"({discord.utils.format_dt(entry['timestamp'], 'R')})"
-                    for entry in recent_commands
-                )
-                status_embed.add_field(
-                    name=f"{self.EMOJI['info']} กิจกรรมล่าสุด", 
-                    value=activity_text, 
+                    emoji=self.ui.EMOJI["dev"],
                     inline=False
                 )
-
-            # Developer Cache Info
-            cached_devs = self._dev_cache.count_active_devs()
-            status_embed.set_footer(
-                text=f"🔑 จำนวน Developer ในแคช: {cached_devs}"
+                .set_footer(
+                    text="Dev Tools",
+                    emoji=self.ui.EMOJI["tools"]
+                )
+                .set_timestamp()
+                .build()
             )
-
-            return status_embed
-
         except Exception as e:
             self.logger.error(f"Error creating status embed: {e}")
-            raise
+            return self._create_error_embed(str(e))
+
+    def _create_error_embed(self, error_message: str) -> discord.Embed:
+        """สร้าง embed สำหรับแสดงข้อผิดพลาด"""
+        return (
+            EmbedBuilder()
+            .set_title(
+                "เกิดข้อผิดพลาด",
+                emoji=self.ui.EMOJI["error"]
+            )
+            .set_description(error_message)
+            .set_color(self.ui.COLORS["error"])
+            .set_timestamp()
+            .build()
+        )
 
     async def _get_bot_process_info(self) -> Dict[str, Any]:
         """รวบรวมข้อมูลการทำงานของบอท"""

@@ -35,7 +35,7 @@ class MyBot(commands.Bot, DevModeMixin):
         self.tree.on_error = self._handle_tree_error
 
         # กำหนดค่า base_dir
-        self.base_dir = Path(__file__).parent / "src"
+        self.base_dir = Path(__file__).parent 
 
         self.start_time = time.time()
         self.executor = ThreadPoolExecutor(max_workers=3)

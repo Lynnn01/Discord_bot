@@ -3,24 +3,16 @@
 from typing import Optional, Union, Any
 from datetime import datetime
 import discord
+from src.utils.ui_constants import UIConstants  # แก้ path import
 
 
 class EmbedBuilder:
     """Builder class สำหรับสร้าง Discord Embed"""
     
-    # สีมาตรฐานที่ใช้บ่อย
-    COLORS = {
-        "default": discord.Color.blurple(),
-        "success": discord.Color.green(),
-        "warning": discord.Color.yellow(),
-        "error": discord.Color.red(),
-        "info": discord.Color.blue()
-    }
-
     def __init__(self):
         """สร้าง embed เปล่า"""
         self.embed = discord.Embed()
-        
+        self.ui = UIConstants()
     # Template Methods สำหรับ Embed ที่ใช้บ่อย
     @classmethod
     def create_welcome_embed(
@@ -99,7 +91,7 @@ class EmbedBuilder:
     def create_error_embed(
         cls,
         title: str = "เกิดข้อผิดพลาด",
-        description: str = "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณา��องใหม่อีกครั้ง",
+        description: str = "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาองใหม่อีกครั้ง",
         error_details: Optional[str] = None
     ) -> discord.Embed:
         """
@@ -136,7 +128,7 @@ class EmbedBuilder:
     def set_color(self, color: Union[str, discord.Color, int]) -> "EmbedBuilder":
         """กำหนดสีของ embed"""
         if isinstance(color, str):
-            self.embed.color = self.COLORS.get(color.lower(), self.COLORS["default"])
+            self.embed.color = self.ui.COLORS.get(color.lower(), self.ui.COLORS["default"])
         else:
             self.embed.color = color
         return self

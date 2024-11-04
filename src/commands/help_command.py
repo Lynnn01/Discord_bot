@@ -4,8 +4,8 @@ import discord
 from discord import app_commands
 import logging
 from datetime import datetime
-from .base_command import BaseCommand
-from utils.embed_builder import EmbedBuilder
+from src.commands.base_command import BaseCommand
+from src.utils.embed_builder import EmbedBuilder  # แก้ path import
 
 logger = logging.getLogger(__name__)
 
@@ -215,50 +215,42 @@ class HelpCommand(BaseCommand):
         return builder.build()
 
     async def _create_commands_overview_embed(self) -> discord.Embed:
-        """สร้าง embed แสดงภาพรวมของคำสั่งทั้งหมด"""
-        commands_by_category = {}
-
-        # จัดกลุ่มคำสั่งตามหมวดหมู่
-        commands = self._filter_commands(self.bot.tree.get_commands())
-        for command in commands:
-            cmd_info = self._get_command_info(command)
-            if cmd_info.category not in commands_by_category:
-                commands_by_category[cmd_info.category] = []
-            commands_by_category[cmd_info.category].append(cmd_info)
-
-        # สร้าง embed
-        builder = (
-            EmbedBuilder()
-            .set_title("📚 คำสั่งทั้งหมด")
-            .set_description(
-                "รายการคำสั่งที่สามารถใช้งานได้ แยกตามหมวดหมู่"
-                + ("\n⚠️ *กำลังทำงานในโหมดพัฒนา*" if self.bot.dev_mode else "")
-            )
-            .set_color(discord.Color.blue())
+        """สร้าง embed สำหรับภาพรวมคำสั่งทั้งหมด"""
+        commands_by_category = self._group_commands_by_category()
+        
+        builder = EmbedBuilder()
+        builder.set_title(
+            "คู่มือการใช้งานคำสั่ง",
+            emoji=self.ui.EMOJI["help"]
         )
+        builder.set_color(self.ui.COLORS["info"])
+        builder.set_description("รายการคำสั่งทั้งหมด แยกตามหมวดหมู่")
 
-        # เพิ่มฟิลด์สำหรับแต่ละหมวดหมู่
-        for category, commands in sorted(commands_by_category.items()):
-            category_emoji = self.categories.get(category, "📁")
-            commands_text = []
-            for cmd in sorted(commands, key=lambda x: x.name):
-                text = f"{cmd.emoji} `/{cmd.name}`"
-                if cmd.cooldown:
-                    text += f" `⏱️{cmd.cooldown}s`"
-                text += f" • {cmd.description}"
-                commands_text.append(text)
+        # เพิ่มแต่ละหมวดหมู่
+        for category, commands in commands_by_category.items():
+            category_emoji = self.ui.EMOJI.get(
+                category.lower(),
+                self.ui.EMOJI["commands"]
+            )
+            field_value = "\n".join(
+                f"`/{cmd.name}` - {cmd.description}"
+                for cmd in commands
+            )
+            builder.add_field(
+                name=f"{category}",
+                value=field_value,
+                emoji=category_emoji,
+                inline=False
+            )
 
-            if commands_text:  # เพิ่มเฉพาหมวดหมู่ที่มีคำสั่ง
-                builder.add_field(
-                    name=f"{category_emoji} {category}",
-                    value="\n".join(commands_text),
-                    inline=False,
-                )
-
-        # เพิ่ม footer แสดงคำแนะนำ
+        # เพิ่ม footer
         total_commands = sum(len(cmds) for cmds in commands_by_category.values())
         builder.set_footer(
-            text=f"💡 พิมพ์ /help [ชื่อคำสั่ง] เพื่อดูรายละเอียดเพิ่มเติม • มีทั้งหมด {total_commands} คำส่ง"
+            text=(
+                f"พิมพ์ /help [ชื่อคำสั่ง] เพื่อดูรายละเอียดเพิ่มเติม • "
+                f"มีทั้งหมด {total_commands} คำสั่ง"
+            ),
+            emoji=self.ui.EMOJI["info"]
         )
 
         return builder.build()

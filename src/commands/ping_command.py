@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Dict, Optional
 import discord
 import logging
-from .base_command import BaseCommand
-from utils.embed_builder import EmbedBuilder
+from src.commands.base_command import BaseCommand
+from src.utils.embed_builder import EmbedBuilder  # แก้ path import
 
 logger = logging.getLogger(__name__)
 
@@ -14,11 +14,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StatusInfo:
     """ข้อมูลสถานะการเชื่อมต่อ"""
-
-    color: discord.Color
+    status: str  # เปลี่ยนจาก color เป็น status
     emoji: str
     description: str
-
 
 @dataclass
 class SystemStats:
@@ -51,15 +49,28 @@ class PingCommand(BaseCommand):
         """กำหนดเกณฑ์การประเมินความเร็วในการตอบสนอง"""
         self.LATENCY_THRESHOLDS = {
             100: StatusInfo(
-                color=discord.Color.green(), emoji="🟢", description="การเชื่อมต่อดีมาก"
+                status="success",
+                emoji=self.ui.EMOJI["success"],
+                description="การเชื่อมต่อดีมาก"
             ),
             200: StatusInfo(
-                color=discord.Color.yellow(), emoji="🟡", description="การเชื่อมต่อปานกลาง"
+                status="warning",
+                emoji=self.ui.EMOJI["warning"],
+                description="การเชื่อมต่อปานกลาง"
             ),
             float("inf"): StatusInfo(
-                color=discord.Color.red(), emoji="🔴", description="การเชื่อมต่อช้า"
+                status="error",
+                emoji=self.ui.EMOJI["error"],
+                description="การเชื่อมต่อช้า"
             ),
         }
+
+    def _get_status_info(self, latency: int) -> StatusInfo:
+        """ประเมินสถานะการเชื่อมต่อ"""
+        for threshold, info in self.LATENCY_THRESHOLDS.items():
+            if latency <= threshold:
+                return info
+        return self.LATENCY_THRESHOLDS[float("inf")]
 
     async def execute(
         self,
@@ -96,12 +107,7 @@ class PingCommand(BaseCommand):
             error_embed = EmbedBuilder.create_error_embed(description=str(e))
             await interaction.response.send_message(embed=error_embed, ephemeral=True)
 
-    def _get_status_info(self, latency: int) -> StatusInfo:
-        """หาข้อมูลสถานะจากค่า latency"""
-        for threshold, info in sorted(self.LATENCY_THRESHOLDS.items()):
-            if latency < threshold:
-                return info
-        return self.LATENCY_THRESHOLDS[float("inf")]
+    
 
     def _format_uptime(self, start_time: datetime) -> str:
         """แปลงระยะเวลาทำงานเป็นข้อความ"""
@@ -138,30 +144,43 @@ class PingCommand(BaseCommand):
         bot_start_time: datetime,
         stats: SystemStats,
     ) -> discord.Embed:
-        """สร้าง embed สำหรับการตอบกลับโดยใช้ EmbedBuilder"""
+        """สร้าง embed สำหรับการตอบกลับ"""
         status_info = self._get_status_info(latency)
         uptime = self._format_uptime(bot_start_time)
 
-        # ใช้ EmbedBuilder ในการสร้าง embed
         return (
             EmbedBuilder()
-            .set_title("Pong!", emoji="🏓")
-            .set_description("📊 ผลการตรวจสอบการเชื่อมต่อและสถานะระบบ")
-            .set_color(status_info.color)
+            .set_title("Pong!", emoji=self.ui.EMOJI["ping"])
+            .set_description(f"{self.ui.EMOJI['stats']} ผลการตรวจสอบการเชื่อมต่อและสถานะระบบ")
+            .set_color(self.ui.COLORS[status_info.status])
             .add_field(
-                name="การตอบสนอง", value=f"`{latency}ms`", emoji="🚀", inline=True
+                name="การตอบสนอง",
+                value=f"`{latency}ms`",
+                emoji=self.ui.EMOJI["ping"],
+                inline=True
             )
             .add_field(
                 name="สถานะ",
                 value=f"{status_info.emoji} {status_info.description}",
-                emoji="📡",
-                inline=True,
+                emoji=self.ui.EMOJI["info"],
+                inline=True
             )
-            .add_field(name="เวลาทำงาน", value=uptime, emoji="⏰", inline=True)
             .add_field(
-                name="สถิติการใช้งาน", value=stats.format_stats(), emoji="📊", inline=False
+                name="เวลาทำงาน",
+                value=uptime,
+                emoji=self.ui.EMOJI["time"],
+                inline=True
             )
-            .set_footer(text=f"ตรวจสอบโดย {user.name}", emoji="🔍")
+            .add_field(
+                name="สถิติการใช้งาน",
+                value=stats.format_stats(),
+                emoji=self.ui.EMOJI["stats"],
+                inline=False
+            )
+            .set_footer(
+                text=f"ตรวจสอบโดย {user.name}",
+                emoji=self.ui.EMOJI["search"]
+            )
             .set_timestamp()
             .build()
         )

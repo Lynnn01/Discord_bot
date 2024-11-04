@@ -13,7 +13,7 @@ sys.path.insert(0, str(current_dir))
 sys.path.insert(0, str(src_path))
 
 from src.utils.logging_config import setup_logger
-from bot import MyBot
+from src.bot import MyBot
 
 # ตั้งค่า logger
 logger = setup_logger()
