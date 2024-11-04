@@ -185,7 +185,7 @@ class DevTools(commands.Cog):
             self._ready = await self._init_bot()
 
     async def cog_load(self):
-        """เรียกใช้เมื่อ Cog ถูกโหลด"""
+        """เรียกใช้เมื่อ Cog ���ูกโหลด"""
         logger.info("🔄 DevTools cog loading...")
         if hasattr(self.bot, "stats"):
             self.bot.stats.setdefault("commands_used", 0)
@@ -606,58 +606,9 @@ class DevTools(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
-        """จัดการข้อผิดพลาดของคำสั่ง"""
-        self.bot.stats["errors_caught"] += 1
-
-        if isinstance(error, commands.errors.CommandInvokeError):
-            error = error.original
-
-        logger.error(f"Command error: {str(error)}", exc_info=error)
-
-        if self.bot.dev_mode:
-            dev_guild_id = os.getenv("DEV_GUILD_ID")
-            if dev_guild_id:
-                try:
-                    dev_guild = self.bot.get_guild(int(dev_guild_id))
-                    if dev_guild:
-                        error_embed = discord.Embed(
-                            title="⚠️ Command Error",
-                            description=f"```py\n{str(error)}\n```",
-                            color=discord.Color.red(),
-                        )
-
-                        error_embed.add_field(
-                            name="Command",
-                            value=f"`{ctx.command.name if ctx.command else 'Unknown'}`",
-                        )
-                        error_embed.add_field(
-                            name="User", value=f"{ctx.author} ({ctx.author.id})"
-                        )
-                        error_embed.add_field(
-                            name="Guild",
-                            value=f"{ctx.guild.name if ctx.guild else 'DM'}",
-                        )
-
-                        # เพิ่ม traceback ถ้ามี
-                        if hasattr(error, "__traceback__"):
-                            import traceback
-
-                            tb = "".join(traceback.format_tb(error.__traceback__))
-                            if tb:
-                                error_embed.add_field(
-                                    name="Traceback",
-                                    value=f"```py\n{tb[:1000]}```",
-                                    inline=False,
-                                )
-
-                        error_channel = discord.utils.get(
-                            dev_guild.text_channels, name="bot-errors"
-                        )
-                        if error_channel:
-                            await error_channel.send(embed=error_embed)
-
-                except Exception as e:
-                    logger.error(f"Error sending error notification: {e}")
+        await self.bot.error_handler.handle_error(
+            ctx, error, include_traceback=self.bot.dev_mode
+        )
 
     async def cog_unload(self):
         """เรียกใช้เมื่อ Cog ถูก unload"""

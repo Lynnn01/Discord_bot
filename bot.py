@@ -14,6 +14,7 @@ src_path = current_dir / "src"
 sys.path.insert(0, str(src_path))
 
 from src.utils.logging_config import setup_logger
+from src.utils.error_handler import GlobalErrorHandler
 
 logger = setup_logger()
 
@@ -47,6 +48,8 @@ class MyBot(commands.Bot):
 
         # สร้างโครงสร้างไฟล์เมื่อเริ่มต้น
         self.ensure_directory_structure()
+
+        self.error_handler = GlobalErrorHandler(self)
 
     def ensure_directory_structure(self):
         """สร้างและตรวจสอบโครงสร้างโฟลเดอร์"""
@@ -123,23 +126,25 @@ class MyBot(commands.Bot):
         logger.info(f"📊 Connected to {len(self.guilds)} guilds")
 
     async def _handle_tree_error(
-        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError
     ):
-        """จัดการ error ที่เกิดจาก command tree"""
-        self.stats["errors_caught"] += 1
+        await self.error_handler.handle_error(interaction, error)
 
-        error_message = "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง"
-        if isinstance(error, app_commands.CommandOnCooldown):
-            error_message = f"กรุณารอ {error.retry_after:.1f} วินาที"
-        elif isinstance(error, app_commands.MissingPermissions):
-            error_message = "คุณไม่มีสิทธิ์ใช้คำสั่งนี้"
-
-        try:
-            await interaction.response.send_message(
-                f"❌ {error_message}", ephemeral=True
-            )
-        except:
-            if not interaction.response.is_done():
-                await interaction.followup.send(f"❌ {error_message}", ephemeral=True)
-
-        logger.error(f"Command tree error: {str(error)}")
+    async def handle_dev_mode(self, guild: discord.Guild) -> bool:
+        """จัดการ Dev Mode
+        
+        Returns:
+            bool: True ถ้าควรออกจาก guild
+        """
+        if not self.dev_mode:
+            return False
+            
+        dev_guild_id = int(os.getenv("DEV_GUILD_ID", "0"))
+        if guild.id != dev_guild_id:
+            logger.info(f"👋 ออกจาก guild {guild.name} (Dev Mode)")
+            await guild.leave()
+            return True
+            
+        return False

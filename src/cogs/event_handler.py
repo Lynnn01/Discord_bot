@@ -108,42 +108,7 @@ class EventHandler(commands.Cog):
     async def on_command_error(
         self, ctx: commands.Context, error: commands.CommandError
     ):
-        """
-        จัดการข้อผิดพลาดที่เกิดจากการใช้คำสั่ง
-
-        Args:
-            ctx: Command context
-            error: ข้อผิดพลาดที่เกิดขึ้น
-        """
-        # เพิ่มสถิติข้อผิดพลาด
-        self.bot.stats["errors_caught"] += 1
-
-        # หาข้อความแจ้งเตือนที่เหมาะสม
-        error_type = type(error)
-        error_message = self.ERROR_MESSAGES.get(
-            error_type, "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง"
-        )
-
-        if isinstance(error, commands.CommandOnCooldown):
-            error_message = f"กรุณารอ {error.retry_after:.1f} วินาที"
-
-        # สร้างและส่ง embed แจ้งเตือน
-        embed = (
-            EmbedBuilder()
-            .set_title("เกิดข้อผิดพลาด", emoji="⚠️")
-            .set_description(error_message)
-            .set_color("error")
-            .add_field(
-                "คำสั่ง", ctx.command.name if ctx.command else "Unknown", emoji="🤖"
-            )
-            .add_field("ประเภทข้อผิดพลาด", error_type.__name__, emoji="🔍")
-            .set_footer(f"User ID: {ctx.author.id}")
-            .set_timestamp()
-            .build()
-        )
-
-        await ctx.send(embed=embed, ephemeral=True)
-        logger.error(f"❌ Command error: {str(error)} in {ctx.command}")
+        await self.bot.error_handler.handle_error(ctx, error)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):

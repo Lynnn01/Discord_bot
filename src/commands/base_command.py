@@ -183,23 +183,7 @@ class BaseCommand(ABC):
         await self._safe_respond(interaction, embed=embed, ephemeral=True)
 
     async def handle_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        """จัดการข้อผิดพลาดทั่วไป"""
-        error_message = str(error)
-        logger.error(f"❌ {self.__class__.__name__} error: {error_message}")
-        
-        error_embed = await self._create_base_embed(
-            title=f"{self.EMOJI['error']} เกิดข้อผิดพลาด",
-            description=error_message,
-            color=self.COLORS["error"]
-        )
-        
-        try:
-            if interaction.response.is_done():
-                await interaction.followup.send(embed=error_embed, ephemeral=True)
-            else:
-                await interaction.response.send_message(embed=error_embed, ephemeral=True)
-        except Exception as e:
-            logger.error(f"❌ Error sending error message: {str(e)}")
+        await self.bot.error_handler.handle_error(interaction, error)
 
     async def check_permissions(
         self, 
