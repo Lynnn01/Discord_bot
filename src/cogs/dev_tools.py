@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 
 # Third-party imports
-import discord
+import discord 
 from discord import app_commands
 from discord.ext import commands
 import psutil
@@ -14,22 +14,9 @@ import psutil
 # Local imports
 from ..utils.decorators import dev_command_error_handler
 from ..utils.exceptions import DevModeError, PermissionError
+from ..utils.embed_builder import EmbedBuilder
 
 logger = logging.getLogger(__name__)
-
-# Command choices
-DEV_ACTIONS = [
-    app_commands.Choice(name="🔄 Sync Commands", value="sync"),
-    app_commands.Choice(name="♻️ Reload Cog", value="reload"),
-    app_commands.Choice(name="📊 Show Status", value="status"),
-    app_commands.Choice(name="🧹 Cleanup Old Commands", value="cleanup")
-]
-
-SYNC_SCOPES = [
-    app_commands.Choice(name="🏠 Guild Only", value="guild"),
-    app_commands.Choice(name="🌐 Global", value="global")
-]
-
 
 class DevCache:
     """จัดการ Cache สำหรับตรวจสอบสิทธิ์ Developer"""
@@ -94,8 +81,9 @@ class CommandHistory:
     def clear(self) -> None:
         self._history.clear()
 
-class DevTools(commands.Cog):
-    """Cog สำหรับเครื่องมือพัฒนา"""
+
+class DevTools(commands.GroupCog, group_name="dev"):
+    """Developer tools for managing the bot"""
 
     def __init__(self, bot):
         self.bot = bot
@@ -126,6 +114,7 @@ class DevTools(commands.Cog):
         }
 
         self._update_available_cogs()
+        super().__init__()
 
     async def _create_base_embed(
         self, title: str, description: str, color: discord.Color
@@ -158,13 +147,9 @@ class DevTools(commands.Cog):
         embed = await self._create_base_embed(
             title=f"{self.EMOJI['loading']} กำลังดำเนินการ",
             description=message,
-            color=self.COLORS["info"],
+            color=self.COLORS["info"]
         )
         await self._safe_respond(interaction, embed=embed, ephemeral=True)
-
-    async def handle_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        """จัดการข้อผิดพลาด"""
-        await self.bot.error_handler.handle_error(interaction, error)
 
     def _update_available_cogs(self):
         """อัพเดทรายชื่อ cogs ที่มีอยู่"""
@@ -174,75 +159,111 @@ class DevTools(commands.Cog):
                 for name in self.bot.cogs.keys()
             ]
         except Exception as e:
-            self.logger.error(f"Error updating available cogs: {e}")
+            logger.error(f"Error updating available cogs: {e}")
             self.available_cogs = []
 
-    @app_commands.command(name="dev", description="🛠️ Developer commands for managing the bot")
-    @app_commands.choices(action=DEV_ACTIONS)
-    @app_commands.describe(
-        action="เลือกการดำเนินการ",
-        scope="ขอบเขตการ sync (เฉพาะคำสั่ง sync)",
-        cog="เลือก cog ที่ต้องการ reload (เฉพาะคำสั่ง reload)"
-    )
-    @dev_command_error_handler()
-    async def execute(
-        self,
-        interaction: discord.Interaction,
-        action: app_commands.Choice[str],
-        scope: Optional[str] = None,
-        cog: Optional[str] = None
-    ):
-        """คำสั่งสำหรับ developer"""
+    async def handle_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        """จัดการข้อผิดพลาด"""
+        await self.bot.error_handler.handle_error(interaction, error)
+
+    @app_commands.command(name="help", description="❓ แสดงวิธีใช้คำสั่ง Developer")
+    async def dev_help(self, interaction: discord.Interaction):
+        """แสดงวิธีใช้คำสั่ง developer ทั้งหมด"""
         try:
-            # ตรวจสอบสิทธิ์ developer
             if not await self._check_dev_permission(interaction):
                 return
 
-            await interaction.response.defer(ephemeral=True)
-            
-            if not self._ready and action.value not in ["sync", "status"]:
-                raise DevModeError(
-                    "⚠️ Bot กำลังเริ่มต้นระบบ กรุณารอสักครู่...\n"
-                    "หมายเหตุ: คำสั่ง sync และ status สามารถใช้งานได้ร��หว่างเริ่มต้นระบบ"
+            embed = (
+                EmbedBuilder()
+                .set_title("🛠️ Developer Commands", emoji="❓")
+                .set_description("คำสั่งสำหรับจัดการระบบ")
+                .add_field(
+                    "🔄 /dev sync [scope]",
+                    "Sync application commands\n`scope`: guild/global",
+                    inline=False
                 )
+                .add_field(
+                    "♻️ /dev reload [cog]",
+                    "Reload cogs\n`cog`: ชื่อ cog หรือ 'all' สำหรับ reload ทั้งหมด",
+                    inline=False
+                )
+                .add_field(
+                    "📊 /dev status",
+                    "แสดงสถานะของระบบ",
+                    inline=False
+                )
+                .add_field(
+                    "🧹 /dev cleanup",
+                    "ล้างคำสั่งเก่า",
+                    inline=False
+                )
+                .set_color("info")
+                .set_footer(f"Requested by {interaction.user}")
+                .build()
+            )
 
-            # เพิ่มสถิติการใช้งาน
-            self._history.add(interaction.user, action.value, True)
-
-            # ดำเนินการตามคำสั่งที่เลือก
-            match action.value:
-                case "sync":
-                    await self._handle_sync(interaction, scope or "guild")
-                case "reload":
-                    await self._handle_reload(interaction, cog)
-                case "status":
-                    await self._handle_status(interaction)
-                case "cleanup":
-                    await self._handle_cleanup(interaction)
-                case _:
-                    raise ValueError("Invalid action")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
         except Exception as e:
             await self.handle_error(interaction, e)
 
-    @execute.autocomplete('scope')
-    async def scope_autocomplete(
-        self,
-        interaction: discord.Interaction,
-        current: str,
-    ) -> List[app_commands.Choice[str]]:
-        """แสดงตัวเลือกสำหรับ scope"""
-        return SYNC_SCOPES
+    @app_commands.command(name="sync", description="🔄 Sync application commands")
+    @app_commands.describe(scope="ขอบเขตการ sync commands")
+    @app_commands.choices(scope=[
+        app_commands.Choice(name="🏠 Guild Only", value="guild"),
+        app_commands.Choice(name="🌐 Global", value="global")
+    ])
+    async def sync(self, interaction: discord.Interaction, scope: str = "guild"):
+        """Sync application commands"""
+        try:
+            if not await self._check_dev_permission(interaction):
+                return
+                
+            await self._handle_sync(interaction, scope)
+        except Exception as e:
+            await self.handle_error(interaction, e)
 
-    @execute.autocomplete('cog')
-    async def cog_autocomplete(
-        self,
-        interaction: discord.Interaction,
-        current: str,
-    ) -> List[app_commands.Choice[str]]:
-        """แสดงตัวเลือกสำหรับ cog"""
+    @app_commands.command(name="reload", description="♻️ Reload cogs")
+    @app_commands.describe(cog="Cog ที่ต้องการ reload (ใช้ all เพื่อ reload ทั้งหมด)")
+    async def reload(self, interaction: discord.Interaction, cog: str):
+        """Reload cogs"""
+        try:
+            if not await self._check_dev_permission(interaction):
+                return
+                
+            await self._handle_reload(interaction, cog)
+        except Exception as e:
+            await self.handle_error(interaction, e)
+
+    @reload.autocomplete('cog')
+    async def reload_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Autocomplete for reload command"""
         self._update_available_cogs()
-        return self.available_cogs
+        choices = [app_commands.Choice(name="📦 All Cogs", value="all")]
+        choices.extend(self.available_cogs)
+        return choices
+
+    @app_commands.command(name="status", description="📊 Show bot status")
+    async def status(self, interaction: discord.Interaction):
+        """Show bot status"""
+        try:
+            if not await self._check_dev_permission(interaction):
+                return
+                
+            await self._handle_status(interaction)
+        except Exception as e:
+            await self.handle_error(interaction, e)
+
+    @app_commands.command(name="cleanup", description="🧹 Cleanup old commands")
+    async def cleanup(self, interaction: discord.Interaction):
+        """Cleanup old commands"""
+        try:
+            if not await self._check_dev_permission(interaction):
+                return
+                
+            await self._handle_cleanup(interaction)
+        except Exception as e:
+            await self.handle_error(interaction, e)
 
     async def _handle_sync(self, interaction: discord.Interaction, scope: str) -> None:
         """จัดการคำสั่ง sync"""
@@ -279,24 +300,81 @@ class DevTools(commands.Cog):
 
         await self._safe_respond(interaction, embed=embed)
 
-    async def _handle_reload(self, interaction: discord.Interaction, cog_name: Optional[str]) -> None:
-        """จัดการคำสั่ง reload"""
+    async def _handle_reload(self, interaction: discord.Interaction, cog_name: Optional[str] = None) -> None:
+        """จัดการคำสั่ง reload cogs"""
         if not cog_name:
-            raise ValueError("Please specify a cog name")
-
-        await self._show_loading(interaction, f"กำลัง reload {cog_name}...")
-
+            raise ValueError("กรุณาระบุชื่อ cog ที่ต้องการ reload\nตัวอย่าง: `dev reload commands`")
+            
         try:
-            await self.bot.reload_extension(f"cogs.{cog_name}")
-            embed = await self._create_base_embed(
-                title=f"{self.EMOJI['success']} Reload สำเร็จ",
-                description=f"Reloaded {cog_name}",
-                color=self.COLORS["success"]
+            await interaction.response.defer(ephemeral=True)
+            
+            # Map of cog display names to actual paths
+            cog_paths = {
+                "all": None,  # Special case for reloading all
+                "commands": "src.cogs.commands",
+                "events": "src.cogs.event_handler",
+                "dev": "src.cogs.dev_tools",
+                # เพิ่ม cogs อื่นๆ ตามต้องการ
+            }
+            
+            if cog_name.lower() == "all":
+                # Reload ทุก cog
+                reloaded = []
+                failed = []
+                
+                for cog_display, cog_path in cog_paths.items():
+                    if cog_display == "all":  # ข้าม key "all"
+                        continue
+                    try:
+                        await self.bot.reload_extension(cog_path)
+                        reloaded.append(cog_display)
+                    except Exception as e:
+                        failed.append(f"{cog_display} ({str(e)})")
+                        
+                status = "✅ Reload ทุก cog สำเร็จ" if not failed else "⚠️ Reload บาง cog ไม่สำเร็จ"
+                description = []
+                if reloaded:
+                    description.append(f"**สำเร็จ ({len(reloaded)})**: {', '.join(reloaded)}")
+                if failed:
+                    description.append(f"**ไม่สำเร็จ ({len(failed)})**: {', '.join(failed)}")
+                    
+            else:
+                # Reload cog เดียว
+                cog_path = cog_paths.get(cog_name.lower())
+                if not cog_path:
+                    raise ValueError(f"ไม่พบ cog ชื่อ '{cog_name}'\nCogs ที่มี: {', '.join(k for k in cog_paths.keys() if k != 'all')}")
+                
+                await self.bot.reload_extension(cog_path)
+                status = f"✅ Reload {cog_name} สำเร็จ"
+                description = [f"Reload cog: `{cog_path}`"]
+                
+            embed = (
+                EmbedBuilder()
+                .set_title("🔄 Reload Cogs", emoji=status.split()[0])
+                .set_description("\n".join(description))
+                .set_color("success" if "สำเร็จ" in status else "warning")
+                .set_footer(f"Requested by {interaction.user}")
+                .build()
             )
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            logger.info(f"🔄 {status}")
+            
         except Exception as e:
-            raise DevModeError(f"Failed to reload {cog_name}: {str(e)}")
+            logger.error(f"❌ เกิดข้อผิดพลาดใน reload: {str(e)}")
+            raise
 
-        await self._safe_respond(interaction, embed=embed)
+    @reload.autocomplete('cog')
+    async def reload_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Autocomplete for reload command"""
+        choices = [
+            app_commands.Choice(name="📦 All Cogs", value="all"),
+            app_commands.Choice(name="🎮 Commands", value="commands"),
+            app_commands.Choice(name="🎯 Events", value="events"),
+            app_commands.Choice(name="🛠️ Developer Tools", value="dev"),
+            # เพิ่ม cogs อื่นๆ ตามต้องการ
+        ]
+        return choices
 
     async def _handle_status(self, interaction: discord.Interaction) -> None:
         """จัดการคำสั่ง status"""
@@ -306,15 +384,33 @@ class DevTools(commands.Cog):
 
     async def _handle_cleanup(self, interaction: discord.Interaction) -> None:
         """จัดการคำสั่ง cleanup"""
-        await self._show_loading(interaction, "กำลังล้างคำสั่งเก่า...")
-        await self.cleanup_old_commands()
-        
-        embed = await self._create_base_embed(
-            title=f"{self.EMOJI['success']} Cleanup สำเร็จ",
-            description="ล้างคำสั่งเก่าเรียบร้อยแล้ว",
-            color=self.COLORS["success"]
-        )
-        await self._safe_respond(interaction, embed=embed)
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            old_count = len(self.bot.tree.get_commands())
+            
+# ลบคำสั่งเก่า
+            self.bot.tree.clear_commands(guild=interaction.guild)
+            await self.bot.tree.sync(guild=interaction.guild)
+            
+            new_count = len(self.bot.tree.get_commands())
+            deleted = old_count - new_count
+            
+            embed = (
+                EmbedBuilder()
+                .set_title("ลบคำสั่งเก่า", emoji="✅")
+                .set_description(f"ลบคำสั่งเก่าแล้ว {deleted} คำสั่ง")
+                .set_color("success")
+                .set_footer(f"จำนวนคำสั่งปัจจุบัน: {new_count}")
+                .build()
+            )
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            logger.info(f"🧹 ลบคำสั่งเก่าแล้ว {deleted} คำสั่ง")
+            
+        except Exception as e:
+            logger.error(f"❌ เกิดข้อผิดพลาดในการลบคำสั่งเก่า: {str(e)}")
+            raise
 
     async def _check_dev_permission(self, interaction: discord.Interaction) -> bool:
         """ตรวจสอบสิทธิ์ dev"""
@@ -325,40 +421,6 @@ class DevTools(commands.Cog):
         except Exception as e:
             await self.handle_error(interaction, e)
             return False
-
-    @commands.Cog.listener()
-    async def on_interaction(self, interaction: discord.Interaction):
-        """จัดการเมื่อมีการใช้งาน interaction"""
-        if interaction.command:
-            self.bot.stats["commands_used"] += 1
-            self._dev_cache.clear_expired()
-
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild: discord.Guild):
-        """จัดการเมื่อบอทถูกเชิญเข้า guild ใหม่"""
-        if self.bot.dev_mode:
-            dev_guild_id = os.getenv("DEV_GUILD_ID")
-            if str(guild.id) != dev_guild_id:
-                logger.warning(f"🚫 Leaving non-dev guild in dev mode: {guild.name}")
-                await guild.leave()
-                return
-        logger.info(f"✅ Joined guild: {guild.name} (ID: {guild.id})")
-
-    @commands.Cog.listener()
-    async def on_command_error(self, ctx, error):
-        await self.bot.error_handler.handle_error(
-            ctx, error, include_traceback=self.bot.dev_mode
-        )
-
-    async def cog_unload(self):
-        """เรียกใช้เมื่อ Cog ถูก unload"""
-        try:
-            logger.info("💾 Saving important data before unload...")
-            self._dev_cache.clear()
-            self._history.clear()
-            logger.info("👋 DevTools cog unloaded successfully")
-        except Exception as e:
-            logger.error(f"❌ Error during cog unload: {e}")
 
     async def _create_status_embed(self) -> discord.Embed:
         """สร้าง embed สำหรับแสดงสถานะของระบบ"""
@@ -464,20 +526,39 @@ class DevTools(commands.Cog):
             self.logger.error(f"Error getting process info: {e}")
             return {}
 
-    async def _check_startup_state(self, interaction: discord.Interaction, action: str) -> None:
-        """ตรวจสอบสถานะการเริ่มต้นของบอท"""
-        if not self._ready and action.lower() not in self._startup_commands:
-            raise DevModeError(
-                "⚠️ Bot กำลังเริ่มต้นระบบ กรุณารอสักครู่...\n"
-                f"หมายเหตุ: คำสั่ง {', '.join(self._startup_commands)} "
-                "สามารถใช้งานได้ระหว่างเริ่มต้นระบบ"
-            )
-
     @commands.Cog.listener()
     async def on_ready(self):
         """เมื่อบอทพร้อมใช้งาน"""
         self._ready = True
         logger.info("✅ DevTools พร้อมใช้งานแล้ว")
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        """จัดการเมื่อมีการใช้งาน interaction"""
+        if interaction.command:
+            self.bot.stats["commands_used"] += 1
+            self._dev_cache.clear_expired()
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        """จัดการเมื่อบอทถูกเชิญเข้า guild ใหม่"""
+        if self.bot.dev_mode:
+            dev_guild_id = os.getenv("DEV_GUILD_ID")
+            if str(guild.id) != dev_guild_id:
+                logger.warning(f"🚫 Leaving non-dev guild in dev mode: {guild.name}")
+                await guild.leave()
+                return
+        logger.info(f"✅ Joined guild: {guild.name} (ID: {guild.id})")
+
+    async def cog_unload(self):
+        """เรียกใช้เมื่อ Cog ถูก unload"""
+        try:
+            logger.info("💾 Saving important data before unload...")
+            self._dev_cache.clear()
+            self._history.clear()
+            logger.info("👋 DevTools cog unloaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Error during cog unload: {e}")
 
 
 async def setup(bot):

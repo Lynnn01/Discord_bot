@@ -80,8 +80,8 @@ class HelpCommand(BaseCommand):
                 "examples": [
                     "/dev action:Sync Commands scope:Guild - ซิงค์คำสั่งกับเซิร์ฟเวอร์",
                     "/dev action:Sync Commands scope:Global - ซิงค์คำสั่งทั้งหมด",
-                    "/dev action:Reload Cogs cog:commands - โหลด cog ใหม่",
-                    "/dev action:Reload Cogs - โหลด cogs ทั้งหมดใหม่",
+                    "/dev action:Reload Cogs cog:all - โหลด cogs ทั้งหมดใหม่",
+                    "/dev action:Reload Cogs cog:commands - โหลด cog เฉพาะใหม่",
                     "/dev action:Show Status - แสดงสถานะระบบ",
                     "/dev action:Cleanup Commands - ลบคำสั่งเก่า",
                 ],
@@ -259,7 +259,7 @@ class HelpCommand(BaseCommand):
         if cmd_info.dev_only:
             builder.set_footer("คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น", emoji="⚠️")
         else:
-            builder.set_footer("💡 เคล็ดลับ: ใช้ /help เพื่อดูคำสั่งทั้งหมด")
+            builder.set_footer("💡 เคล็ด��ับ: ใช้ /help เพื่อดูคำสั่งทั้งหมด")
 
         return builder.build()
 
