@@ -48,9 +48,11 @@ class GlobalErrorHandler:
                 log_level=logging.WARNING
             ),
             DevModeError: ErrorData(
-                "🛠️ Dev Mode Error",
-                "{error}",
-                show_traceback=True
+                title="⚠️ โหมดพัฒนา",
+                description="{error}",
+                color=discord.Color.yellow(),
+                log_level=logging.WARNING,
+                show_traceback=False
             ),
             PermissionError: ErrorData(
                 "🔒 ไม่มีสิทธิ์",
@@ -180,3 +182,42 @@ class GlobalErrorHandler:
                 await ctx.send(embed=embed)
         except Exception as e:
             logger.error(f"Error sending error response: {e}")
+
+    def _create_log_message(
+        self,
+        error: Exception,
+        ctx: Union[commands.Context, discord.Interaction]
+    ) -> str:
+        """สร้างข้อความ log สำหรับ error
+        
+        Args:
+            error: Exception ที่เกิดขึ้น
+            ctx: Context หรือ Interaction ที่เกิด error
+            
+        Returns:
+            str: ข้อความ log ที่จัดรูปแบบแล้ว
+        """
+        # ดึงข้อมูลผู้ใช้และ guild
+        if isinstance(ctx, discord.Interaction):
+            user = ctx.user
+            guild = ctx.guild
+            command = ctx.command.name if ctx.command else "Unknown"
+        else:
+            user = ctx.author
+            guild = ctx.guild
+            command = ctx.command.name if ctx.command else "Unknown"
+            
+        # สร้างข้อความ log
+        log_parts = [
+            f"Error in command '{command}'",
+            f"User: {user} (ID: {user.id})",
+        ]
+        
+        if guild:
+            log_parts.append(f"Guild: {guild.name} (ID: {guild.id})")
+        else:
+            log_parts.append("Guild: DM")
+            
+        log_parts.append(f"Error: {str(error)}")
+        
+        return " | ".join(log_parts)
