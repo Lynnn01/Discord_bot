@@ -1,16 +1,29 @@
+from enum import Enum
+from typing import Literal
 import discord
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
-from typing import Optional
 import logging
 
 from ..commands.ping_command import PingCommand
 from ..commands.roll_command import RollCommand
 from ..commands.help_command import HelpCommand
-from src.utils.exceptions import DevModeError
 
 logger = logging.getLogger(__name__)
+
+
+class HelpScope(str, Enum):
+    """หมวดหมู่และคำสั่งสำหรับ help command"""
+    # หมวดหมู่
+    ALL = "ภาพรวมคำสั่ง 📖"
+    
+    # System Commands
+    PING = "เช็คการเชื่อมต่อ 🏓"
+    HELP = "วิธีใช้งาน ❓"
+    
+    # Fun Commands
+    ROLL = "ทอยลูกเต๋า 🎲"
 
 
 class CommandsCog(commands.Cog):
@@ -42,19 +55,42 @@ class CommandsCog(commands.Cog):
             await self.roll_cmd.execute(interaction, self.bot.stats)
 
         # Command: help
-        @app_commands.command(name="help", description="ดูวิธีใช้คำสั่ง")
-        @app_commands.describe(command="ชื่อคำสั่งที่ต้องการดูรายละเอียด")
-        async def help(interaction: discord.Interaction, command: Optional[str] = None):
+        @app_commands.command(
+            name="help",
+            description="📖 ดูวิธีใช้งานคำสั่งต่างๆ แยกตามหมวดหมู่"
+        )
+        @app_commands.describe(
+            scope="📑 เลือกคำสั่งหรือหมวดหมู่ที่ต้องการดู"
+        )
+        async def help(
+            interaction: discord.Interaction,
+            scope: Literal[
+                "ภาพรวมคำสั่ง 📖",
+                "เช็คการเชื่อมต่อ 🏓", 
+                "ทอยลูกเต๋า 🎲",
+                "วิธีใช้งาน ❓"
+            ] = HelpScope.ALL
+        ):
+            # แปลง scope จาก enum เป็นชื่อคำสั่ง
+            command_map = {
+                HelpScope.ALL: None,      # None = แสดงทั้งหมด
+                HelpScope.PING: "ping",
+                HelpScope.ROLL: "roll",
+                HelpScope.HELP: "help"
+            }
+            
             await self.help_cmd.execute(
-                interaction, self.bot.stats, command_name=command
+                interaction, 
+                self.bot.stats, 
+                command_name=command_map[scope]
             )
 
         # เพิ่ม commands เข้า CommandTree
         for cmd in [ping, roll, help]:
             self.bot.tree.add_command(cmd)
-            logger.debug(f"✅ Registered command: {cmd.name}")
+            logger.debug(f"✅ ลงทะเบียนคำสั่ง: {cmd.name}")
 
-        logger.info("✅ Registered all commands successfully")
+        logger.info("✅ ลงทะเบียนคำสั่งทั้งหมดสำเร็จ")
 
     @commands.Cog.listener()
     async def on_ready(self):

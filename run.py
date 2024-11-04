@@ -33,7 +33,15 @@ class BotManager:
         self.shutdown_flag = False
 
     def validate_env(self) -> Dict[str, str]:
-        """ตรวจสอบและโหลดตัวแปรสภาพแวดล้อม"""
+        """
+        ตรวจสอบและโหลดตัวแปรสภาพแวดล้อม
+
+        Returns:
+            Dict[str, str]: ตัวแปรสภาพแวดล้อมที่จำเป็น
+
+        Raises:
+            ValueError: ถ้าไม่พบตัวแปรที่จำเป็น
+        """
         # โหลด .env
         load_dotenv()
 
@@ -50,10 +58,11 @@ class BotManager:
         if missing_vars:
             raise ValueError(f"❌ ไม่พบตัวแปรที่จำเป็น: {', '.join(missing_vars)}")
 
-        # ตรวจสอบ DEV_MODE และ DEV_GUILD_ID ผ่าน DevModeMixin
-        if env_vars.get("DEV_MODE", "").lower() == "true":
-            if not env_vars.get("DEV_GUILD_ID"):
-                raise ValueError("❌ DEV_MODE เปิดอยู่แต่ไม่พบ DEV_GUILD_ID")
+        # ตรวจสอบ DEV_MODE และ DEV_GUILD_ID
+        if env_vars.get("DEV_MODE", "").lower() == "true" and not env_vars.get(
+            "DEV_GUILD_ID"
+        ):
+            raise ValueError("❌ DEV_MODE เปิดอยู่แต่ไม่พบ DEV_GUILD_ID")
 
         return env_vars
 

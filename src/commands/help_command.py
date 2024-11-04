@@ -26,7 +26,7 @@ class CommandInfo:
 
 
 class HelpCommand(BaseCommand):
-    """คำสั่งสำหรับแสดงวิธีใช้งานคำสั่งต่างๆ พร้อมรองรับ Dev Mode และ Auto-complete"""
+    """คำสั่งสำหรับแสดงวิธีใช้งานคำสั่งต่างๆ พร้อมรองรับ Dev Mode"""
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -34,12 +34,9 @@ class HelpCommand(BaseCommand):
             "ทั่วไป": "🔧",
             "เกม": "🎮",
             "ระบบ": "⚙️",
-            "พัฒนา": "🛠️",  # สำหรับ dev commands
+            "พัฒนา": "🛠️",
         }
         self.command_info = self._setup_command_info()
-        # สร้าง cache สำหรับ auto-complete
-        self._command_cache = {}
-        self._update_command_cache()
 
     def _setup_command_info(self) -> Dict[str, Dict]:
         """ตั้งค่าข้อมูลพื้นฐานของคำสั่ง"""
@@ -48,172 +45,71 @@ class HelpCommand(BaseCommand):
                 "emoji": "🏓",
                 "category": "ระบบ",
                 "examples": [
-                    "ตรวจสอบความเร็วในการตอบสนอง",
-                    "ดูสถิติการใช้งานบอท",
-                    "ตรวจสอบเวลาทำงานของบอท",
+                    "ตรวจสอบการตอบสนอง: /ping",
+                    "ดูสถิติ Latency และเวลาทำงาน",
                 ],
                 "cooldown": 5,
                 "dev_only": False,
+                "description": "ตรวจสอบการเชื่อมต่อและดูสถานะระบบ"
             },
             "roll": {
                 "emoji": "🎲",
                 "category": "เกม",
                 "examples": [
-                    "ทอยลูกเต๋าเพื่อตัดสินใจ",
-                    "ทอยเพื่อลุ้น Critical Success (20)",
-                    "ดูโชคของคุณวันนี้",
+                    "ทอยลูกเต๋า 1-6: /roll",
+                    "ลุ้นดวงของคุณ!",
                 ],
                 "cooldown": 3,
                 "dev_only": False,
+                "description": "ทอยลูกเต๋าสุ่มตัวเลข"
             },
             "help": {
                 "emoji": "❓",
                 "category": "ทั่วไป",
                 "examples": [
-                    "ดูรายการคำสั่งทั้งหมด: /help",
-                    "ดูวิธีใช้คำสั่งเฉพาะ: /help [ชื่อคำสั่ง]",
+                    "ดูคำสั่งทั้งหมด: /help",
+                    "ดูวิธีใช้คำสั่งเฉพาะ: /help [คำสั่ง]",
                 ],
                 "cooldown": None,
                 "dev_only": False,
-            },
-            "dev": {
-                "emoji": "🛠️",
-                "category": "พัฒนา",
-                "examples": [
-                    "/dev action:Sync Commands scope:Guild - ซิงค์คำสั่งกับเซิร์ฟเวอร์",
-                    "/dev action:Sync Commands scope:Global - ซิงค์คำสั่งทั้งหมด",
-                    "/dev action:Reload Cogs cog:all - โหลด cogs ทั้งหมดใหม่",
-                    "/dev action:Reload Cogs cog:commands - โหลด cog เฉพาะใหม่",
-                    "/dev action:Show Status - แสดงสถานะระบบ",
-                    "/dev action:Cleanup Commands - ลบคำสั่งเก่า",
-                ],
-                "cooldown": None,
-                "dev_only": True,
-                "permissions": ["Administrator"],
-                "options": [
-                    "`action`: การดำเนินการที่ต้องการ (จำเป็น)",
-                    "`scope`: ขอบเขตการ sync - global/guild (สำหรับ Sync Commands)",
-                    "`cog`: ชื่อ cog ที่ต้องการ reload (สำหรับ Reload Cogs)",
-                ],
-            },
+                "description": "แสดงวิธีใช้งานคำสั่งต่างๆ"
+            }
         }
 
-    def _update_command_cache(self):
-        """อัพเดท cache ของคำสั่งสำหรับ auto-complete"""
-        commands = self._filter_commands(self.bot.tree.get_commands())
-        self._command_cache = {
-            cmd.name: self._get_command_info(cmd) for cmd in commands
-        }
-
-    def _build_usage_string(self, command: app_commands.Command) -> str:
-        """สร้างข้อความแสดงวิธีใช้งานคำสั่ง"""
-        usage = f"/{command.name}"
-
-        # ตรวจสอบว่าเป็นคำสั่ง dev หรือไม่
-        if command.name == "dev":
-            return (
-                f"{usage} action:<Sync/Reload/Status/Cleanup> "
-                "[scope:guild/global] [cog:name]"
+    def get_command_choices(self) -> List[app_commands.Choice]:
+        """สร้างรายการตัวเลือกสำหรับคำสั่ง help"""
+        choices = []
+        
+        # เพิ่มตัวเลือก "ทั้งหมด"
+        choices.append(
+            app_commands.Choice(
+                name="📚 ดูคำสั่งทั้งหมด",
+                value="all"  # เปลี่ยนจาก "" เป็น "all"
             )
-
-        # สำหรับคำสั่งอื่นๆ
-        if hasattr(command, "_params"):
-            for param in command._params.values():
-                param_str = (
-                    f" [{param.name}]" if not param.required else f" <{param.name}>"
-                )
-                usage += param_str
-
-        return usage
-
-    def _get_command_info(self, command: app_commands.Command) -> CommandInfo:
-        """สร้าง CommandInfo จาก Command object"""
-        base_info = self.command_info.get(command.name, {})
-        options = []
-        permissions = []
-
-        # ตรวจสอบ permissions
-        if hasattr(command, "default_permissions"):
-            perms = command.default_permissions
-            if perms:
-                permissions = [perm for perm, value in perms.items() if value]
-
-        # ดึงข้อมูล options
-        if hasattr(command, "_params"):
-            for param in command._params.values():
-                option_desc = f"`{param.name}`"
-                if param.description:
-                    option_desc += f": {param.description}"
-                if not param.required:
-                    option_desc += " (ไม่จำเป็น)"
-                options.append(option_desc)
-
-        return CommandInfo(
-            name=command.name,
-            description=command.description or "ไม่มีคำอธิบาย",
-            usage=self._build_usage_string(command),
-            emoji=base_info.get("emoji", "🔹"),
-            examples=base_info.get("examples", ["ไม่มีตัวอย่าง"]),
-            category=base_info.get("category", "ทั่วไป"),
-            options=options,
-            dev_only=base_info.get("dev_only", False),
-            cooldown=base_info.get("cooldown"),
-            permissions=permissions,
         )
-
-    def _filter_commands(self, commands) -> List[app_commands.Command]:
-        """กรองคำสั่งตามโหมดการทำงาน"""
-        filtered_commands = []
-        for command in commands:
-            cmd_info = self.command_info.get(command.name, {})
-            # แสดงคำสั่ง dev เฉพาะใน dev mode
-            if cmd_info.get("dev_only", False) and not self.bot.dev_mode:
+        
+        # เพิ่มคำสั่งอื่นๆ
+        for cmd_name, info in self.command_info.items():
+            # ข้ามคำสั่ง dev ถ้าไม่ได้อยู่ใน dev mode
+            if info.get("dev_only") and not self.bot.dev_mode:
                 continue
-            filtered_commands.append(command)
-        return filtered_commands
-
-    async def command_autocomplete(
-        self, 
-        interaction: discord.Interaction, 
-        current: str,
-    ) -> List[app_commands.Choice[str]]:
-        """ฟังก์ชันสำหรับ auto-complete ชื่อคำสั่ง"""
-        # อัพเดท cache ถ้าจำเป็น
-        if not self._command_cache:
-            self._update_command_cache()
-
-        # กรองคำสั่งตามข้อความที่พิมพ์
-        matches = []
-        for cmd_name, cmd_info in self._command_cache.items():
-            if current.lower() in cmd_name.lower():
-                # สร้างข้อความสำหรับแสดงใน auto-complete
-                display = f"{cmd_info.emoji} {cmd_name}"
-                if cmd_info.dev_only and self.bot.dev_mode:
-                    display += " (Dev)"
-                matches.append(
-                    app_commands.Choice(
-                        name=display,
-                        value=cmd_name
-                    )
+                
+            display_name = (
+                f"{info['emoji']} {cmd_name} - {info['description'][:30]}"
+                + ("..." if len(info['description']) > 30 else "")
+            )
+            
+            if info.get('cooldown'):
+                display_name += f" ⏱️{info['cooldown']}s"
+                
+            choices.append(
+                app_commands.Choice(
+                    name=display_name,
+                    value=cmd_name
                 )
-
-        # เรียงลำดับตามชื่อคำสั่งและจำกัดจำนวน
-        matches.sort(key=lambda x: x.name)
-        return matches[:25]  # Discord จำกัดไว้ที่ 25 ตัวเลือก
-
-    @app_commands.command(
-        name="help",
-        description="แสดงวิธีใช้งานคำสั่งต่างๆ"
-    )
-    @app_commands.autocomplete(command_name=command_autocomplete)
-    async def help_command(
-        self,
-        interaction: discord.Interaction,
-        command_name: Optional[str] = None
-    ):
-        """Entry point สำหรับคำสั่ง /help"""
-        command_stats = getattr(self.bot, 'command_stats', {})
-        await self.execute(interaction, command_stats, command_name)
+            )
+            
+        return choices
 
     async def execute(
         self,
@@ -225,29 +121,35 @@ class HelpCommand(BaseCommand):
         try:
             command_stats["help"] = command_stats.get("help", 0) + 1
 
-            if command_name:
+            # ถ้าเลือก "all" หรือไม่ได้เลือกอะไร ให้แสดงภาพรวมทั้งหมด
+            if not command_name or command_name == "all":
+                embed = await self._create_commands_overview_embed()
+            else:
                 # หาคำสั่งจาก CommandTree
                 command = self.bot.tree.get_command(command_name)
                 if not command:
-                    raise ValueError(f"ไม่พบคำสั่ง `{command_name}`")
+                    raise ValueError(f"❌ ไม่พบคำสั่ง `{command_name}`")
 
                 # ตรวจสอบสิทธิ์การเข้าถึง
                 cmd_info = self.command_info.get(command_name, {})
                 if cmd_info.get("dev_only", False) and not self.bot.dev_mode:
-                    raise ValueError("คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น")
+                    raise ValueError("⚠️ คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น")
 
                 embed = await self._create_command_detail_embed(command)
-            else:
-                embed = await self._create_commands_overview_embed()
 
             await interaction.response.send_message(embed=embed)
             logger.info(
-                f"🔍 ผู้ใช้ {interaction.user} ขอดูวิธีใช้คำสั่ง {command_name if command_name else 'ทั้งหมด'}"
+                f"🔍 ผู้ใช้ {interaction.user} ดูวิธีใช้คำสั่ง {command_name if command_name and command_name != 'all' else 'ทั้งหมด'}"
             )
 
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดในคำสั่ง help: {str(e)}")
-            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+            await interaction.response.send_message(
+                f"❌ เกิดข้อผิดพลาด: {str(e)}", 
+                ephemeral=True
+            )
+
+
 
     async def _create_command_detail_embed(
         self, command: app_commands.Command
@@ -304,7 +206,7 @@ class HelpCommand(BaseCommand):
             inline=False,
         )
 
-        # เพิ่มข้อความ Dev Mode ถ้าจำเป็น
+        # เพิ่มข้อควม Dev Mode ถ้าจำเป็น
         if cmd_info.dev_only:
             builder.set_footer(text="⚠️ คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น")
         else:
@@ -346,7 +248,7 @@ class HelpCommand(BaseCommand):
                 text += f" • {cmd.description}"
                 commands_text.append(text)
 
-            if commands_text:  # เพิ่มเฉพาะหมวดหมู่ที่มีคำสั่ง
+            if commands_text:  # เพิ่มเฉพาหมวดหมู่ที่มีคำสั่ง
                 builder.add_field(
                     name=f"{category_emoji} {category}",
                     value="\n".join(commands_text),
@@ -356,7 +258,7 @@ class HelpCommand(BaseCommand):
         # เพิ่ม footer แสดงคำแนะนำ
         total_commands = sum(len(cmds) for cmds in commands_by_category.values())
         builder.set_footer(
-            text=f"💡 พิมพ์ /help [ชื่อคำสั่ง] เพื่อดูรายละเอียดเพิ่มเติม • มีทั้งหมด {total_commands} คำสั่ง"
+            text=f"💡 พิมพ์ /help [ชื่อคำสั่ง] เพื่อดูรายละเอียดเพิ่มเติม • มีทั้งหมด {total_commands} คำส่ง"
         )
 
         return builder.build()
@@ -381,3 +283,93 @@ class HelpCommand(BaseCommand):
             options.append(option_text)
 
         return options
+
+    def _should_update_cache(self) -> bool:
+        """ตรวจสอบว่าควรอัพเดท cache หรือไม่"""
+        if not self._last_cache_update:
+            return True
+        return (datetime.now() - self._last_cache_update).seconds > self._cache_ttl
+
+    def _get_command_status(self, command_name: str) -> str:
+        """รับสถานะของคำสั่ง"""
+        cmd_info = self.command_info.get(command_name, {})
+        status = []
+        
+        if cmd_info.get("dev_only"):
+            status.append("🛠️ Dev")
+        if cmd_info.get("cooldown"):
+            status.append(f"⏱️ {cmd_info['cooldown']}s")
+        if cmd_info.get("permissions"):
+            status.append("🔒")
+            
+        return " ".join(status) if status else ""
+    
+    def _get_command_info(self, command: app_commands.Command) -> CommandInfo:
+        """สร้าง CommandInfo จาก Command object"""
+        base_info = self.command_info.get(command.name, {})
+        options = []
+        permissions = []
+
+        # ตรวจสอบ permissions
+        if hasattr(command, "default_permissions"):
+            perms = command.default_permissions
+            if perms:
+                permissions = [perm for perm, value in perms.items() if value]
+
+        # ดึงข้อมูล options
+        if hasattr(command, "_params"):
+            for param in command._params.values():
+                option_desc = f"`{param.name}`"
+                if param.description:
+                    option_desc += f": {param.description}"
+                if not param.required:
+                    option_desc += " (ไม่จำเป็น)"
+                options.append(option_desc)
+
+        # สร้าง usage string
+        usage = self._build_usage_string(command)
+
+        return CommandInfo(
+            name=command.name,
+            description=base_info.get('description') or command.description or "ไม่มีคำอธิบาย",
+            usage=usage,
+            emoji=base_info.get("emoji", "🔹"),
+            examples=base_info.get("examples", ["ไม่มีตัวอย่าง"]),
+            category=base_info.get("category", "ทั่วไป"),
+            options=options,
+            dev_only=base_info.get("dev_only", False),
+            cooldown=base_info.get("cooldown"),
+            permissions=permissions,
+        )
+
+    def _filter_commands(self, commands) -> List[app_commands.Command]:
+        """กรองคำสั่งตามโหมดการทำงาน"""
+        filtered_commands = []
+        for command in commands:
+            cmd_info = self.command_info.get(command.name, {})
+            # แสดงคำสั่ง dev เฉพาะใน dev mode
+            if cmd_info.get("dev_only", False) and not self.bot.dev_mode:
+                continue
+            filtered_commands.append(command)
+        return filtered_commands
+
+    def _build_usage_string(self, command: app_commands.Command) -> str:
+        """สร้างข้อความแสดงวิธีใช้งานคำสั่ง"""
+        usage = f"/{command.name}"
+
+        # ตรวจสอบว่าเป็นคำสั่ง dev หรือไม่
+        if command.name == "dev":
+            return (
+                f"{usage} action:<Sync/Reload/Status/Cleanup> "
+                "[scope:guild/global] [cog:name]"
+            )
+
+        # สำหรับคำสั่งอื่นๆ
+        if hasattr(command, "_params"):
+            for param in command._params.values():
+                param_str = (
+                    f" [{param.name}]" if not param.required else f" <{param.name}>"
+                )
+                usage += param_str
+
+        return usage
