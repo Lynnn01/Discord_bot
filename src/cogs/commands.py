@@ -8,6 +8,7 @@ import logging
 from ..commands.ping_command import PingCommand
 from ..commands.roll_command import RollCommand
 from ..commands.help_command import HelpCommand
+from src.utils.exceptions import DevModeError
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,20 @@ class CommandsCog(commands.Cog):
 
         except Exception as e:
             logger.error(f"❌ Error in CommandsCog on_ready: {str(e)}")
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx: commands.Context, error: Exception):
+        """จัดการ error จากคำสั่งปกติ"""
+        await self.bot.error_handler.handle_error(ctx, error)
+        
+    @commands.Cog.listener()
+    async def on_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError
+    ):
+        """จัดการ error จาก slash commands"""
+        await self.bot.error_handler.handle_error(interaction, error)
 
 
 async def setup(bot):

@@ -61,8 +61,6 @@ class MyBot(commands.Bot, DevModeMixin):
                 self.base_dir / "utils",
             ]
 
-            if self.dev_mode:
-                required_folders.append(self.base_dir / "dev_tools")
 
             for folder in required_folders:
                 folder.mkdir(parents=True, exist_ok=True)

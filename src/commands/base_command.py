@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, Union
 from datetime import datetime
 
+from src.utils.exceptions import UserError, PermissionError
+
 logger = logging.getLogger(__name__)
 
 
@@ -189,14 +191,15 @@ class BaseCommand(ABC):
         self, 
         interaction: discord.Interaction,
         required_permissions: Dict[str, bool]
-    ) -> bool:
-        """ตรวจสอบ permissions"""
+    ) -> None:
+        """
+        ตรวจสอบ permissions
+        
+        Raises:
+            PermissionError: ถ้าผู้ใช้ไม่มีสิทธิ์ที่จำเป็น
+        """
         if not interaction.guild:
-            await self._send_error_message(
-                interaction,
-                "คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น"
-            )
-            return False
+            raise UserError("คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น")
             
         missing_perms = []
         for perm, required in required_permissions.items():
@@ -204,7 +207,7 @@ class BaseCommand(ABC):
                 missing_perms.append(perm)
                 
         if missing_perms:
-            await self._handle_missing_permissions(interaction, missing_perms)
-            return False
-            
-        return True
+            raise PermissionError(
+                "คุณไม่มีสิทธิ์ที่จำเป็น",
+                missing_perms=missing_perms
+            )
