@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CommandInfo:
     """ข้อมูลของแต่ละคำสั่ง"""
-
     name: str
     description: str
     usage: str
@@ -27,7 +26,7 @@ class CommandInfo:
 
 
 class HelpCommand(BaseCommand):
-    """คำสั่งสำหรับแสดงวิธีใช้งานคำสั่งต่างๆ พร้อมรองรับ Dev Mode"""
+    """คำสั่งสำหรับแสดงวิธีใช้งานคำสั่งต่างๆ พร้อมรองรับ Dev Mode และ Auto-complete"""
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -35,9 +34,12 @@ class HelpCommand(BaseCommand):
             "ทั่วไป": "🔧",
             "เกม": "🎮",
             "ระบบ": "⚙️",
-            "พัฒนา": "🛠️",  # สำรับ dev commands
+            "พัฒนา": "🛠️",  # สำหรับ dev commands
         }
         self.command_info = self._setup_command_info()
+        # สร้าง cache สำหรับ auto-complete
+        self._command_cache = {}
+        self._update_command_cache()
 
     def _setup_command_info(self) -> Dict[str, Dict]:
         """ตั้งค่าข้อมูลพื้นฐานของคำสั่ง"""
@@ -94,6 +96,13 @@ class HelpCommand(BaseCommand):
                     "`cog`: ชื่อ cog ที่ต้องการ reload (สำหรับ Reload Cogs)",
                 ],
             },
+        }
+
+    def _update_command_cache(self):
+        """อัพเดท cache ของคำสั่งสำหรับ auto-complete"""
+        commands = self._filter_commands(self.bot.tree.get_commands())
+        self._command_cache = {
+            cmd.name: self._get_command_info(cmd) for cmd in commands
         }
 
     def _build_usage_string(self, command: app_commands.Command) -> str:
@@ -163,6 +172,49 @@ class HelpCommand(BaseCommand):
             filtered_commands.append(command)
         return filtered_commands
 
+    async def command_autocomplete(
+        self, 
+        interaction: discord.Interaction, 
+        current: str,
+    ) -> List[app_commands.Choice[str]]:
+        """ฟังก์ชันสำหรับ auto-complete ชื่อคำสั่ง"""
+        # อัพเดท cache ถ้าจำเป็น
+        if not self._command_cache:
+            self._update_command_cache()
+
+        # กรองคำสั่งตามข้อความที่พิมพ์
+        matches = []
+        for cmd_name, cmd_info in self._command_cache.items():
+            if current.lower() in cmd_name.lower():
+                # สร้างข้อความสำหรับแสดงใน auto-complete
+                display = f"{cmd_info.emoji} {cmd_name}"
+                if cmd_info.dev_only and self.bot.dev_mode:
+                    display += " (Dev)"
+                matches.append(
+                    app_commands.Choice(
+                        name=display,
+                        value=cmd_name
+                    )
+                )
+
+        # เรียงลำดับตามชื่อคำสั่งและจำกัดจำนวน
+        matches.sort(key=lambda x: x.name)
+        return matches[:25]  # Discord จำกัดไว้ที่ 25 ตัวเลือก
+
+    @app_commands.command(
+        name="help",
+        description="แสดงวิธีใช้งานคำสั่งต่างๆ"
+    )
+    @app_commands.autocomplete(command_name=command_autocomplete)
+    async def help_command(
+        self,
+        interaction: discord.Interaction,
+        command_name: Optional[str] = None
+    ):
+        """Entry point สำหรับคำสั่ง /help"""
+        command_stats = getattr(self.bot, 'command_stats', {})
+        await self.execute(interaction, command_stats, command_name)
+
     async def execute(
         self,
         interaction: discord.Interaction,
@@ -206,60 +258,57 @@ class HelpCommand(BaseCommand):
 
         builder = (
             EmbedBuilder()
-            .set_title(f"วิธีใช้คำสั่ง {cmd_info.name}", emoji=cmd_info.emoji)
+            .set_title(f"{cmd_info.emoji} วิธีใช้คำสั่ง {cmd_info.name}")
             .set_description(cmd_info.description)
             .set_color(discord.Color.blue())
             .add_field(
-                name="หมวดหมู่",
+                name="📂 หมวดหมู่",
                 value=f"{category_emoji} {cmd_info.category}",
-                emoji="📂",
                 inline=True,
             )
             .add_field(
-                name="วิธีใช้", value=f"`{cmd_info.usage}`", emoji="📝", inline=True
+                name="📝 วิธีใช้",
+                value=f"`{cmd_info.usage}`",
+                inline=True,
             )
         )
 
         # เพิ่มข้อมูล cooldown
         if cmd_info.cooldown:
             builder.add_field(
-                name="Cooldown",
+                name="⏱️ Cooldown",
                 value=f"{cmd_info.cooldown} วินาที",
-                emoji="⏱️",
                 inline=True,
             )
 
         # เพิ่มข้อมูลสิทธิ์
         if cmd_info.permissions:
             builder.add_field(
-                name="สิทธิ์ที่จำเป็น",
+                name="🔒 สิทธิ์ที่จำเป็น",
                 value="\n".join(f"• {perm}" for perm in cmd_info.permissions),
-                emoji="🔒",
                 inline=True,
             )
 
         # เพิ่ม options ถ้ามี
         if cmd_info.options:
             builder.add_field(
-                name="พารามิเตอร์",
+                name="🔧 พารามิเตอร์",
                 value="\n".join(f"• {opt}" for opt in cmd_info.options),
-                emoji="🔧",
                 inline=False,
             )
 
         # เพิ่มตัวอย่างการใช้งาน
         builder.add_field(
-            name="ตัวอย่างการใช้งาน",
+            name="💡 ตัวอย่างการใช้งาน",
             value="\n".join(f"• {example}" for example in cmd_info.examples),
-            emoji="💡",
             inline=False,
         )
 
         # เพิ่มข้อความ Dev Mode ถ้าจำเป็น
         if cmd_info.dev_only:
-            builder.set_footer("คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น", emoji="⚠️")
+            builder.set_footer(text="⚠️ คำสั่งนี้ใช้ได้เฉพาะในโหมดพัฒนาเท่านั้น")
         else:
-            builder.set_footer("💡 เคล็ด��ับ: ใช้ /help เพื่อดูคำสั่งทั้งหมด")
+            builder.set_footer(text="💡 เคล็ดลับ: ใช้ /help เพื่อดูคำสั่งทั้งหมด")
 
         return builder.build()
 
@@ -278,7 +327,7 @@ class HelpCommand(BaseCommand):
         # สร้าง embed
         builder = (
             EmbedBuilder()
-            .set_title("คำสั่งทั้งหมด", emoji="📚")
+            .set_title("📚 คำสั่งทั้งหมด")
             .set_description(
                 "รายการคำสั่งที่สามารถใช้งานได้ แยกตามหมวดหมู่"
                 + ("\n⚠️ *กำลังทำงานในโหมดพัฒนา*" if self.bot.dev_mode else "")
@@ -287,7 +336,7 @@ class HelpCommand(BaseCommand):
         )
 
         # เพิ่มฟิลด์สำหรับแต่ละหมวดหมู่
-        for category, commands in commands_by_category.items():
+        for category, commands in sorted(commands_by_category.items()):
             category_emoji = self.categories.get(category, "📁")
             commands_text = []
             for cmd in sorted(commands, key=lambda x: x.name):
@@ -304,6 +353,31 @@ class HelpCommand(BaseCommand):
                     inline=False,
                 )
 
-        return builder.set_footer(
-            text="💡 พิมพ์ /help [ชื่อคำสั่ง] เพื่อดูรายละเอียดเพิ่มเติม", emoji="❓"
-        ).build()
+        # เพิ่ม footer แสดงคำแนะนำ
+        total_commands = sum(len(cmds) for cmds in commands_by_category.values())
+        builder.set_footer(
+            text=f"💡 พิมพ์ /help [ชื่อคำสั่ง] เพื่อดูรายละเอียดเพิ่มเติม • มีทั้งหมด {total_commands} คำสั่ง"
+        )
+
+        return builder.build()
+
+    def _get_command_examples(self, command_name: str) -> List[str]:
+        """ดึงตัวอย่างการใช้งานของคำสั่ง"""
+        cmd_info = self.command_info.get(command_name, {})
+        return cmd_info.get("examples", ["ไม่มีตัวอย่างการใช้งาน"])
+
+    def _format_command_options(self, command: app_commands.Command) -> List[str]:
+        """จัดรูปแบบ options ของคำสั่ง"""
+        if not hasattr(command, "_params"):
+            return []
+
+        options = []
+        for param in command._params.values():
+            option_text = f"`{param.name}`"
+            if param.description:
+                option_text += f": {param.description}"
+            if not param.required:
+                option_text += " (ไม่จำเป็น)"
+            options.append(option_text)
+
+        return options
